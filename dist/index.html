@@ -147,7 +147,8 @@ h2 {
   grid-column: 1 / -1;
 }
 
-.field span {
+.field > span,
+.field-label {
   font-size: 13px;
   font-weight: 700;
   color: #2f3d49;
@@ -155,6 +156,10 @@ h2 {
 
 .field small {
   color: var(--muted);
+}
+
+.field-help {
+  max-width: 760px;
 }
 
 .field small.is-error {
@@ -173,6 +178,25 @@ textarea {
   background: #fbfcfd;
   color: var(--text);
   padding: 11px 12px;
+}
+
+.check-field {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  color: #2f3d49;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.check-field input {
+  width: auto;
+  margin: 2px 0 0;
+}
+
+.check-field span {
+  color: inherit;
+  font-size: inherit;
 }
 
 textarea {
@@ -241,6 +265,10 @@ button:disabled {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.recovered-output {
+  margin-bottom: 16px;
 }
 
 .recovery-note {
@@ -380,11 +408,16 @@ button:disabled {
 
         <section class="panel" id="generatePanel" role="tabpanel" aria-labelledby="generateTab">
           <form id="generateForm" class="form-grid" autocomplete="off">
-            <label class="field field-wide">
-              <span>Master secret hex</span>
-              <textarea id="secretHexInput" rows="8" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="secretBytes" placeholder="32 hex digits minimum; whitespace is ignored; byte length must be even"></textarea>
+            <div class="field field-wide">
+              <label class="field-label" id="secretInputLabel" for="secretHexInput">Master secret hex</label>
+              <textarea id="secretHexInput" rows="8" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="secretBytes secretTransform" placeholder="32 hex digits minimum; whitespace is ignored; byte length must be even"></textarea>
+              <label class="check-field">
+                <input id="secretTextMode" type="checkbox">
+                <span>Enter text instead of hex</span>
+              </label>
               <small id="secretBytes">0 bytes</small>
-            </label>
+              <small class="field-help" id="secretTransform">Hex mode shares the exact bytes from lowercase-normalized hex. Whitespace is ignored.</small>
+            </div>
 
             <label class="field">
               <span>Passphrase</span>
@@ -420,7 +453,7 @@ button:disabled {
                 <dt>Scheme</dt>
                 <dd id="recoveryScheme">Single group T-of-N</dd>
                 <dt>Master secret</dt>
-                <dd>Raw bytes encoded as lowercase hex</dd>
+                <dd id="recoveryMasterSecret">Raw bytes encoded as lowercase hex</dd>
                 <dt>Passphrase</dt>
                 <dd>Printable ASCII; empty string if blank</dd>
                 <dt>Parameters</dt>
@@ -452,8 +485,15 @@ button:disabled {
           </form>
 
           <div class="result-area" id="recoverResult" hidden>
+            <div class="recovered-output" id="recoveredTextBlock" hidden>
+              <div class="result-head">
+                <h2>Recovered text</h2>
+                <button class="secondary" id="copyRecoveredText" type="button">Copy text</button>
+              </div>
+              <textarea id="recoveredText" rows="5" readonly spellcheck="false"></textarea>
+            </div>
             <div class="result-head">
-              <h2>Recovered master secret hex</h2>
+              <h2 id="recoveredHexHeading">Recovered master secret hex</h2>
               <button class="secondary" id="copyRecovered" type="button">Copy</button>
             </div>
             <textarea id="recoveredHex" rows="7" readonly spellcheck="false"></textarea>
@@ -494,11 +534,15 @@ button:disabled {
     combineMnemonicsFlexible: () => combineMnemonicsFlexible,
     compactHex: () => compactHex,
     createChecksum: () => createChecksum,
+    decodeTextMasterSecret: () => decodeTextMasterSecret,
+    describeTextMasterSecret: () => describeTextMasterSecret,
+    encodeTextMasterSecret: () => encodeTextMasterSecret,
     generateMnemonics: () => generateMnemonics,
     gfMultiply: () => gfMultiply,
     hasRequiredCrypto: () => hasRequiredCrypto,
     hexToBytes: () => hexToBytes,
     interpolate: () => interpolate,
+    isTextMasterSecretEnvelope: () => isTextMasterSecretEnvelope,
     normalizeHex: () => normalizeHex,
     parseMasterSecretHex: () => parseMasterSecretHex,
     splitSecret: () => splitSecret,
@@ -1317,6 +1361,110 @@ button:disabled {
     throw lastError ?? new Slip39Error("No valid threshold-complete mnemonic subset was found.");
   }
 
+  // src/js/slip39/text-envelope.js
+  var TEXT_ENCODER = new TextEncoder();
+  var TEXT_DECODER = new TextDecoder("utf-8", { fatal: true });
+  var TEXT_MASTER_SECRET_MAGIC = Uint8Array.from("SLIP39TXT", (char) => char.charCodeAt(0));
+  var TEXT_MASTER_SECRET_VERSION = 1;
+  var VERSION_OFFSET = TEXT_MASTER_SECRET_MAGIC.length;
+  var LENGTH_OFFSET = VERSION_OFFSET + 1;
+  var PAYLOAD_OFFSET = LENGTH_OFFSET + 4 + 16;
+  var MAX_UINT32 = 4294967295;
+  function ensureText(value) {
+    if (typeof value !== "string") {
+      throw new Slip39Error("The text master secret must be a string.");
+    }
+  }
+  function writeUint32BigEndian(output, offset, value) {
+    output[offset] = value >>> 24 & 255;
+    output[offset + 1] = value >>> 16 & 255;
+    output[offset + 2] = value >>> 8 & 255;
+    output[offset + 3] = value & 255;
+  }
+  function readUint32BigEndian(input, offset) {
+    return input[offset] * 16777216 + (input[offset + 1] << 16) + (input[offset + 2] << 8) + input[offset + 3];
+  }
+  function getPaddingLength(payloadLength) {
+    return payloadLength % 2;
+  }
+  function hasMagic(bytes) {
+    if (Object.prototype.toString.call(bytes) !== "[object Uint8Array]") {
+      return false;
+    }
+    if (bytes.length < TEXT_MASTER_SECRET_MAGIC.length) {
+      return false;
+    }
+    for (let index = 0; index < TEXT_MASTER_SECRET_MAGIC.length; index += 1) {
+      if (bytes[index] !== TEXT_MASTER_SECRET_MAGIC[index]) {
+        return false;
+      }
+    }
+    return true;
+  }
+  function parseTextMasterSecretEnvelope(bytes) {
+    if (!hasMagic(bytes) || bytes.length < PAYLOAD_OFFSET) {
+      return null;
+    }
+    if (bytes[VERSION_OFFSET] !== TEXT_MASTER_SECRET_VERSION) {
+      return null;
+    }
+    const utf8ByteLength = readUint32BigEndian(bytes, LENGTH_OFFSET);
+    const payloadEnd = PAYLOAD_OFFSET + utf8ByteLength;
+    if (!Number.isSafeInteger(payloadEnd) || payloadEnd > bytes.length) {
+      return null;
+    }
+    const paddingByteLength = bytes.length - payloadEnd;
+    if (paddingByteLength !== getPaddingLength(utf8ByteLength)) {
+      return null;
+    }
+    try {
+      return {
+        text: TEXT_DECODER.decode(bytes.subarray(PAYLOAD_OFFSET, payloadEnd)),
+        utf8ByteLength,
+        masterSecretByteLength: bytes.length,
+        paddingByteLength
+      };
+    } catch {
+      return null;
+    }
+  }
+  function describeTextMasterSecret(text) {
+    ensureText(text);
+    const utf8ByteLength = TEXT_ENCODER.encode(text).length;
+    if (utf8ByteLength > MAX_UINT32) {
+      throw new Slip39Error("The text is too large for the SLIP39TXT v1 envelope.");
+    }
+    const paddingByteLength = getPaddingLength(utf8ByteLength);
+    return {
+      utf8ByteLength,
+      masterSecretByteLength: PAYLOAD_OFFSET + utf8ByteLength + paddingByteLength,
+      paddingByteLength
+    };
+  }
+  function encodeTextMasterSecret(text) {
+    ensureText(text);
+    const payload = TEXT_ENCODER.encode(text);
+    if (payload.length > MAX_UINT32) {
+      throw new Slip39Error("The text is too large for the SLIP39TXT v1 envelope.");
+    }
+    const header = new Uint8Array(PAYLOAD_OFFSET);
+    header.set(TEXT_MASTER_SECRET_MAGIC);
+    header[VERSION_OFFSET] = TEXT_MASTER_SECRET_VERSION;
+    writeUint32BigEndian(header, LENGTH_OFFSET, payload.length);
+    header.set(randomBytes(16), LENGTH_OFFSET + 4);
+    const paddingByteLength = getPaddingLength(payload.length);
+    const padding = paddingByteLength === 0 ? new Uint8Array() : randomBytes(paddingByteLength);
+    const output = concatBytes(header, payload, padding);
+    validateMasterSecretBytes(output);
+    return output;
+  }
+  function decodeTextMasterSecret(bytes) {
+    return parseTextMasterSecretEnvelope(bytes)?.text ?? null;
+  }
+  function isTextMasterSecretEnvelope(bytes) {
+    return parseTextMasterSecretEnvelope(bytes) !== null;
+  }
+
   // src/js/ui/clipboard.js
   async function copyText(text) {
     if (navigator.clipboard?.writeText) {
@@ -1343,8 +1491,11 @@ button:disabled {
       recoverPanel: document.querySelector("#recoverPanel"),
       generateForm: document.querySelector("#generateForm"),
       recoverForm: document.querySelector("#recoverForm"),
+      secretInputLabel: document.querySelector("#secretInputLabel"),
       secretHexInput: document.querySelector("#secretHexInput"),
+      secretTextMode: document.querySelector("#secretTextMode"),
       secretBytes: document.querySelector("#secretBytes"),
+      secretTransform: document.querySelector("#secretTransform"),
       generatePassphrase: document.querySelector("#generatePassphrase"),
       recoverPassphrase: document.querySelector("#recoverPassphrase"),
       shareCount: document.querySelector("#shareCount"),
@@ -1352,11 +1503,16 @@ button:disabled {
       sharesResult: document.querySelector("#sharesResult"),
       shareList: document.querySelector("#shareList"),
       recoveryScheme: document.querySelector("#recoveryScheme"),
+      recoveryMasterSecret: document.querySelector("#recoveryMasterSecret"),
       sharesInput: document.querySelector("#sharesInput"),
       recoverResult: document.querySelector("#recoverResult"),
+      recoveredTextBlock: document.querySelector("#recoveredTextBlock"),
+      recoveredText: document.querySelector("#recoveredText"),
+      recoveredHexHeading: document.querySelector("#recoveredHexHeading"),
       recoveredHex: document.querySelector("#recoveredHex"),
       message: document.querySelector("#message"),
       copyAllShares: document.querySelector("#copyAllShares"),
+      copyRecoveredText: document.querySelector("#copyRecoveredText"),
       copyRecovered: document.querySelector("#copyRecovered"),
       clearGenerate: document.querySelector("#clearGenerate"),
       clearRecover: document.querySelector("#clearRecover")
@@ -1420,6 +1576,9 @@ button:disabled {
       bytesToHex: bytesToHex2,
       combineMnemonicsFlexible: combineMnemonicsFlexible2,
       compactHex: compactHex2,
+      decodeTextMasterSecret: decodeTextMasterSecret2,
+      describeTextMasterSecret: describeTextMasterSecret2,
+      encodeTextMasterSecret: encodeTextMasterSecret2,
       generateMnemonics: generateMnemonics2,
       hasRequiredCrypto: hasRequiredCrypto2,
       MIN_STRENGTH_BITS: MIN_STRENGTH_BITS2,
@@ -1427,8 +1586,19 @@ button:disabled {
     } = core;
     const elements = getElements();
     let currentShares = [];
+    const hexPlaceholder = "32 hex digits minimum; whitespace is ignored; byte length must be even";
+    const textPlaceholder = "Enter any text; whitespace and new lines are preserved";
     function setMessage2(text, tone = "") {
       setMessage(elements, text, tone);
+    }
+    function formatByteCount(length) {
+      return `${length} byte${length === 1 ? "" : "s"}`;
+    }
+    function isTextMode() {
+      return elements.secretTextMode.checked;
+    }
+    function updateRecoveryNote(textMode) {
+      elements.recoveryMasterSecret.textContent = textMode ? "Text encoded as a SLIP39TXT v1 envelope; external tools recover envelope bytes as hex" : "Raw bytes encoded as lowercase hex";
     }
     function setTab(mode) {
       const generating = mode === "generate";
@@ -1440,9 +1610,28 @@ button:disabled {
       elements.recoverPanel.hidden = generating;
       setMessage2("");
     }
+    function updateInputMode() {
+      const textMode = isTextMode();
+      elements.secretInputLabel.textContent = textMode ? "Master secret text" : "Master secret hex";
+      elements.secretHexInput.placeholder = textMode ? textPlaceholder : hexPlaceholder;
+      updateByteCount();
+    }
     function updateByteCount() {
+      if (isTextMode()) {
+        elements.secretBytes.className = "";
+        elements.secretTransform.textContent = "Text mode encodes UTF-8, adds a SLIP39TXT v1 envelope with original length and 16 random bytes, then adds one random padding byte only when needed.";
+        try {
+          const info = describeTextMasterSecret2(elements.secretHexInput.value);
+          elements.secretBytes.textContent = `${formatByteCount(info.utf8ByteLength)} UTF-8; ${formatByteCount(info.masterSecretByteLength)} SLIP-0039 bytes`;
+        } catch (error) {
+          elements.secretBytes.textContent = error.message;
+          elements.secretBytes.className = "is-error";
+        }
+        return;
+      }
       const hex = compactHex2(elements.secretHexInput.value);
       elements.secretBytes.className = "";
+      elements.secretTransform.textContent = "Hex mode shares the exact bytes from lowercase-normalized hex. Whitespace is ignored.";
       if (hex.length === 0) {
         elements.secretBytes.textContent = "0 bytes";
         return;
@@ -1470,9 +1659,13 @@ button:disabled {
       }
       elements.secretBytes.textContent = `${byteLength} bytes; normalized ${hex.length} hex digits`;
     }
+    function parseMasterSecretInput() {
+      return isTextMode() ? encodeTextMasterSecret2(elements.secretHexInput.value) : parseMasterSecretHex2(elements.secretHexInput.value);
+    }
     elements.generateTab.addEventListener("click", () => setTab("generate"));
     elements.recoverTab.addEventListener("click", () => setTab("recover"));
     elements.secretHexInput.addEventListener("input", updateByteCount);
+    elements.secretTextMode.addEventListener("change", updateInputMode);
     elements.generateForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       setBusy(elements.generateForm, true);
@@ -1480,14 +1673,16 @@ button:disabled {
       try {
         const threshold = parsePositiveInteger(elements.threshold);
         const shareCount = parsePositiveInteger(elements.shareCount);
+        const textMode = isTextMode();
         const shares = await generateMnemonics2(
           threshold,
           shareCount,
-          parseMasterSecretHex2(elements.secretHexInput.value),
+          parseMasterSecretInput(),
           elements.generatePassphrase.value
         );
         currentShares = shares;
         renderShares(elements, shares, threshold, shareCount, copyText, setMessage2);
+        updateRecoveryNote(textMode);
         setMessage2("Shares generated. Store each share separately.", "ok");
       } catch (error) {
         elements.sharesResult.hidden = true;
@@ -1504,10 +1699,26 @@ button:disabled {
         const mnemonics = splitSharesInput(elements.sharesInput.value);
         const recovered = await combineMnemonicsFlexible2(mnemonics, elements.recoverPassphrase.value);
         elements.recoveredHex.value = bytesToHex2(recovered);
+        const recoveredText = decodeTextMasterSecret2(recovered);
+        if (recoveredText === null) {
+          elements.recoveredTextBlock.hidden = true;
+          elements.recoveredText.value = "";
+          elements.recoveredHexHeading.textContent = "Recovered master secret hex";
+          setMessage2("Master secret bytes recovered. SLIP-0039 cannot verify whether the passphrase was the intended one.", "warning");
+        } else {
+          elements.recoveredText.value = recoveredText;
+          elements.recoveredTextBlock.hidden = false;
+          elements.recoveredHexHeading.textContent = "Recovered envelope hex";
+          setMessage2(
+            "Text envelope recovered. The hex remains the canonical SLIP-0039 master-secret bytes. SLIP-0039 cannot verify whether the passphrase was the intended one.",
+            "warning"
+          );
+        }
         elements.recoverResult.hidden = false;
-        setMessage2("Master secret bytes recovered. SLIP-0039 cannot verify whether the passphrase was the intended one.", "warning");
       } catch (error) {
         elements.recoverResult.hidden = true;
+        elements.recoveredTextBlock.hidden = true;
+        elements.recoveredText.value = "";
         elements.recoveredHex.value = "";
         setMessage2(error.message, "error");
       } finally {
@@ -1522,19 +1733,28 @@ button:disabled {
       await copyText(elements.recoveredHex.value);
       setMessage2("Copied recovered hex.", "ok");
     });
+    elements.copyRecoveredText.addEventListener("click", async () => {
+      await copyText(elements.recoveredText.value);
+      setMessage2("Copied recovered text.", "ok");
+    });
     elements.clearGenerate.addEventListener("click", () => {
       elements.secretHexInput.value = "";
+      elements.secretTextMode.checked = false;
       elements.generatePassphrase.value = "";
       elements.sharesResult.hidden = true;
       elements.shareList.replaceChildren();
       currentShares = [];
-      updateByteCount();
+      updateRecoveryNote(false);
+      updateInputMode();
       setMessage2("");
     });
     elements.clearRecover.addEventListener("click", () => {
       elements.sharesInput.value = "";
       elements.recoverPassphrase.value = "";
       elements.recoverResult.hidden = true;
+      elements.recoveredTextBlock.hidden = true;
+      elements.recoveredText.value = "";
+      elements.recoveredHexHeading.textContent = "Recovered master secret hex";
       elements.recoveredHex.value = "";
       setMessage2("");
     });
@@ -1545,7 +1765,8 @@ button:disabled {
       elements.cryptoStatus.classList.add("is-error");
       setMessage2("This browser cannot run the required Web Crypto operations.", "error");
     }
-    updateByteCount();
+    updateRecoveryNote(false);
+    updateInputMode();
   }
 
   // src/js/app.js
@@ -1557,11 +1778,15 @@ button:disabled {
     combineMnemonics,
     combineMnemonicsFlexible,
     createChecksum,
+    decodeTextMasterSecret,
+    describeTextMasterSecret,
+    encodeTextMasterSecret,
     generateMnemonics,
     gfMultiply,
     hasRequiredCrypto,
     hexToBytes,
     interpolate,
+    isTextMasterSecretEnvelope,
     normalizeHex,
     parseMasterSecretHex,
     splitSecret,

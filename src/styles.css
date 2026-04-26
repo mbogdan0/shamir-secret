@@ -137,7 +137,8 @@ h2 {
   grid-column: 1 / -1;
 }
 
-.field span {
+.field > span,
+.field-label {
   font-size: 13px;
   font-weight: 700;
   color: #2f3d49;
@@ -145,6 +146,10 @@ h2 {
 
 .field small {
   color: var(--muted);
+}
+
+.field-help {
+  max-width: 760px;
 }
 
 .field small.is-error {
@@ -163,6 +168,25 @@ textarea {
   background: #fbfcfd;
   color: var(--text);
   padding: 11px 12px;
+}
+
+.check-field {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  color: #2f3d49;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.check-field input {
+  width: auto;
+  margin: 2px 0 0;
+}
+
+.check-field span {
+  color: inherit;
+  font-size: inherit;
 }
 
 textarea {
@@ -231,6 +255,10 @@ button:disabled {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.recovered-output {
+  margin-bottom: 16px;
 }
 
 .recovery-note {

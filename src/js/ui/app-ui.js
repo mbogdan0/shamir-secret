@@ -10,6 +10,9 @@ export function startUi(core) {
     bytesToHex,
     combineMnemonicsFlexible,
     compactHex,
+    decodeTextMasterSecret,
+    describeTextMasterSecret,
+    encodeTextMasterSecret,
     generateMnemonics,
     hasRequiredCrypto,
     MIN_STRENGTH_BITS,
@@ -17,9 +20,25 @@ export function startUi(core) {
   } = core;
   const elements = getElements();
   let currentShares = [];
+  const hexPlaceholder = "32 hex digits minimum; whitespace is ignored; byte length must be even";
+  const textPlaceholder = "Enter any text; whitespace and new lines are preserved";
 
   function setMessage(text, tone = "") {
     setElementMessage(elements, text, tone);
+  }
+
+  function formatByteCount(length) {
+    return `${length} byte${length === 1 ? "" : "s"}`;
+  }
+
+  function isTextMode() {
+    return elements.secretTextMode.checked;
+  }
+
+  function updateRecoveryNote(textMode) {
+    elements.recoveryMasterSecret.textContent = textMode
+      ? "Text encoded as a SLIP39TXT v1 envelope; external tools recover envelope bytes as hex"
+      : "Raw bytes encoded as lowercase hex";
   }
 
   function setTab(mode) {
@@ -33,9 +52,32 @@ export function startUi(core) {
     setMessage("");
   }
 
+  function updateInputMode() {
+    const textMode = isTextMode();
+    elements.secretInputLabel.textContent = textMode ? "Master secret text" : "Master secret hex";
+    elements.secretHexInput.placeholder = textMode ? textPlaceholder : hexPlaceholder;
+    updateByteCount();
+  }
+
   function updateByteCount() {
+    if (isTextMode()) {
+      elements.secretBytes.className = "";
+      elements.secretTransform.textContent =
+        "Text mode encodes UTF-8, adds a SLIP39TXT v1 envelope with original length and 16 random bytes, then adds one random padding byte only when needed.";
+      try {
+        const info = describeTextMasterSecret(elements.secretHexInput.value);
+        elements.secretBytes.textContent =
+          `${formatByteCount(info.utf8ByteLength)} UTF-8; ${formatByteCount(info.masterSecretByteLength)} SLIP-0039 bytes`;
+      } catch (error) {
+        elements.secretBytes.textContent = error.message;
+        elements.secretBytes.className = "is-error";
+      }
+      return;
+    }
+
     const hex = compactHex(elements.secretHexInput.value);
     elements.secretBytes.className = "";
+    elements.secretTransform.textContent = "Hex mode shares the exact bytes from lowercase-normalized hex. Whitespace is ignored.";
     if (hex.length === 0) {
       elements.secretBytes.textContent = "0 bytes";
       return;
@@ -64,9 +106,16 @@ export function startUi(core) {
     elements.secretBytes.textContent = `${byteLength} bytes; normalized ${hex.length} hex digits`;
   }
 
+  function parseMasterSecretInput() {
+    return isTextMode()
+      ? encodeTextMasterSecret(elements.secretHexInput.value)
+      : parseMasterSecretHex(elements.secretHexInput.value);
+  }
+
   elements.generateTab.addEventListener("click", () => setTab("generate"));
   elements.recoverTab.addEventListener("click", () => setTab("recover"));
   elements.secretHexInput.addEventListener("input", updateByteCount);
+  elements.secretTextMode.addEventListener("change", updateInputMode);
 
   elements.generateForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -76,14 +125,16 @@ export function startUi(core) {
     try {
       const threshold = parsePositiveInteger(elements.threshold);
       const shareCount = parsePositiveInteger(elements.shareCount);
+      const textMode = isTextMode();
       const shares = await generateMnemonics(
         threshold,
         shareCount,
-        parseMasterSecretHex(elements.secretHexInput.value),
+        parseMasterSecretInput(),
         elements.generatePassphrase.value,
       );
       currentShares = shares;
       renderShares(elements, shares, threshold, shareCount, copyText, setMessage);
+      updateRecoveryNote(textMode);
       setMessage("Shares generated. Store each share separately.", "ok");
     } catch (error) {
       elements.sharesResult.hidden = true;
@@ -102,10 +153,26 @@ export function startUi(core) {
       const mnemonics = splitSharesInput(elements.sharesInput.value);
       const recovered = await combineMnemonicsFlexible(mnemonics, elements.recoverPassphrase.value);
       elements.recoveredHex.value = bytesToHex(recovered);
+      const recoveredText = decodeTextMasterSecret(recovered);
+      if (recoveredText === null) {
+        elements.recoveredTextBlock.hidden = true;
+        elements.recoveredText.value = "";
+        elements.recoveredHexHeading.textContent = "Recovered master secret hex";
+        setMessage("Master secret bytes recovered. SLIP-0039 cannot verify whether the passphrase was the intended one.", "warning");
+      } else {
+        elements.recoveredText.value = recoveredText;
+        elements.recoveredTextBlock.hidden = false;
+        elements.recoveredHexHeading.textContent = "Recovered envelope hex";
+        setMessage(
+          "Text envelope recovered. The hex remains the canonical SLIP-0039 master-secret bytes. SLIP-0039 cannot verify whether the passphrase was the intended one.",
+          "warning"
+        );
+      }
       elements.recoverResult.hidden = false;
-      setMessage("Master secret bytes recovered. SLIP-0039 cannot verify whether the passphrase was the intended one.", "warning");
     } catch (error) {
       elements.recoverResult.hidden = true;
+      elements.recoveredTextBlock.hidden = true;
+      elements.recoveredText.value = "";
       elements.recoveredHex.value = "";
       setMessage(error.message, "error");
     } finally {
@@ -123,13 +190,20 @@ export function startUi(core) {
     setMessage("Copied recovered hex.", "ok");
   });
 
+  elements.copyRecoveredText.addEventListener("click", async () => {
+    await copyText(elements.recoveredText.value);
+    setMessage("Copied recovered text.", "ok");
+  });
+
   elements.clearGenerate.addEventListener("click", () => {
     elements.secretHexInput.value = "";
+    elements.secretTextMode.checked = false;
     elements.generatePassphrase.value = "";
     elements.sharesResult.hidden = true;
     elements.shareList.replaceChildren();
     currentShares = [];
-    updateByteCount();
+    updateRecoveryNote(false);
+    updateInputMode();
     setMessage("");
   });
 
@@ -137,6 +211,9 @@ export function startUi(core) {
     elements.sharesInput.value = "";
     elements.recoverPassphrase.value = "";
     elements.recoverResult.hidden = true;
+    elements.recoveredTextBlock.hidden = true;
+    elements.recoveredText.value = "";
+    elements.recoveredHexHeading.textContent = "Recovered master secret hex";
     elements.recoveredHex.value = "";
     setMessage("");
   });
@@ -149,5 +226,6 @@ export function startUi(core) {
     setMessage("This browser cannot run the required Web Crypto operations.", "error");
   }
 
-  updateByteCount();
+  updateRecoveryNote(false);
+  updateInputMode();
 }

@@ -27,11 +27,16 @@
 
         <section class="panel" id="generatePanel" role="tabpanel" aria-labelledby="generateTab">
           <form id="generateForm" class="form-grid" autocomplete="off">
-            <label class="field field-wide">
-              <span>Master secret hex</span>
-              <textarea id="secretHexInput" rows="8" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="secretBytes" placeholder="32 hex digits minimum; whitespace is ignored; byte length must be even"></textarea>
+            <div class="field field-wide">
+              <label class="field-label" id="secretInputLabel" for="secretHexInput">Master secret hex</label>
+              <textarea id="secretHexInput" rows="8" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="secretBytes secretTransform" placeholder="32 hex digits minimum; whitespace is ignored; byte length must be even"></textarea>
+              <label class="check-field">
+                <input id="secretTextMode" type="checkbox">
+                <span>Enter text instead of hex</span>
+              </label>
               <small id="secretBytes">0 bytes</small>
-            </label>
+              <small class="field-help" id="secretTransform">Hex mode shares the exact bytes from lowercase-normalized hex. Whitespace is ignored.</small>
+            </div>
 
             <label class="field">
               <span>Passphrase</span>
@@ -67,7 +72,7 @@
                 <dt>Scheme</dt>
                 <dd id="recoveryScheme">Single group T-of-N</dd>
                 <dt>Master secret</dt>
-                <dd>Raw bytes encoded as lowercase hex</dd>
+                <dd id="recoveryMasterSecret">Raw bytes encoded as lowercase hex</dd>
                 <dt>Passphrase</dt>
                 <dd>Printable ASCII; empty string if blank</dd>
                 <dt>Parameters</dt>
@@ -99,8 +104,15 @@
           </form>
 
           <div class="result-area" id="recoverResult" hidden>
+            <div class="recovered-output" id="recoveredTextBlock" hidden>
+              <div class="result-head">
+                <h2>Recovered text</h2>
+                <button class="secondary" id="copyRecoveredText" type="button">Copy text</button>
+              </div>
+              <textarea id="recoveredText" rows="5" readonly spellcheck="false"></textarea>
+            </div>
             <div class="result-head">
-              <h2>Recovered master secret hex</h2>
+              <h2 id="recoveredHexHeading">Recovered master secret hex</h2>
               <button class="secondary" id="copyRecovered" type="button">Copy</button>
             </div>
             <textarea id="recoveredHex" rows="7" readonly spellcheck="false"></textarea>

@@ -59,7 +59,9 @@ async function loadAppCore(crypto = webcrypto) {
   const appScript = await appScriptPromise;
   const context = vm.createContext({
     crypto,
-    console
+    console,
+    TextDecoder,
+    TextEncoder
   });
   vm.runInContext(appScript, context, { filename: "dist/index.html" });
   assert.ok(context.__SLIP39_APP__, "inline app script must expose its test API");
@@ -84,6 +86,10 @@ const appPromise = loadAppCore();
 
 function asArray(bytes) {
   return [...bytes];
+}
+
+function utf8Length(value) {
+  return new TextEncoder().encode(value).length;
 }
 
 test("wordlist has the required size and unique entries", async () => {
@@ -219,6 +225,68 @@ test("hex helpers and master secret parsing validate pure byte input", async () 
   assert.throws(() => parseMasterSecretHex("00".repeat(15)), /at least 16 bytes/);
   assert.throws(() => parseMasterSecretHex(`${SECRET_16_HEX}0`), /odd number of digits/);
   assert.throws(() => parseMasterSecretHex("00".repeat(17)), /multiple of 2/);
+});
+
+test("text master secret envelopes round-trip user text", async () => {
+  const {
+    decodeTextMasterSecret,
+    describeTextMasterSecret,
+    encodeTextMasterSecret,
+    isTextMasterSecretEnvelope
+  } = await loadAppCore(deterministicCrypto());
+  const cases = [
+    "plain ASCII text",
+    "Unicode text: snowman \u2603 and emoji \u{1f642}",
+    "  leading whitespace\nand trailing whitespace  ",
+    "",
+    "a",
+    "ab"
+  ];
+
+  for (const text of cases) {
+    const info = describeTextMasterSecret(text);
+    const encoded = encodeTextMasterSecret(text);
+    assert.equal(info.utf8ByteLength, utf8Length(text));
+    assert.equal(info.paddingByteLength, info.utf8ByteLength % 2);
+    assert.equal(encoded.length, info.masterSecretByteLength);
+    assert.equal(encoded.length % 2, 0);
+    assert.ok(encoded.length >= 16);
+    assert.equal(isTextMasterSecretEnvelope(encoded), true);
+    assert.equal(decodeTextMasterSecret(encoded), text);
+  }
+});
+
+test("text envelope decoder ignores unsupported or malformed bytes", async () => {
+  const {
+    decodeTextMasterSecret,
+    encodeTextMasterSecret,
+    isTextMasterSecretEnvelope
+  } = await loadAppCore(deterministicCrypto());
+  const valid = encodeTextMasterSecret("a");
+  const badVersion = new Uint8Array(valid);
+  badVersion["SLIP39TXT".length] = 2;
+  const badLength = new Uint8Array(valid);
+  badLength["SLIP39TXT".length + 1] = 0xff;
+  const missingPadding = valid.slice(0, -1);
+  const invalidUtf8 = new Uint8Array(32);
+  invalidUtf8.set(Uint8Array.from("SLIP39TXT", (char) => char.charCodeAt(0)));
+  invalidUtf8["SLIP39TXT".length] = 1;
+  invalidUtf8["SLIP39TXT".length + 4] = 1;
+  invalidUtf8[30] = 0xff;
+
+  for (const bytes of [SECRET_16, badVersion, badLength, missingPadding, invalidUtf8]) {
+    assert.equal(isTextMasterSecretEnvelope(bytes), false);
+    assert.equal(decodeTextMasterSecret(bytes), null);
+  }
+});
+
+test("text envelopes remain standard SLIP-0039 master-secret bytes", async () => {
+  const app = await loadAppCore(deterministicCrypto());
+  const encoded = app.encodeTextMasterSecret("recover me\nexactly");
+  const shares = await app.generateMnemonics(2, 3, encoded, "");
+  const recovered = await app.combineMnemonics([shares[0], shares[1]], "");
+  assert.deepEqual(asArray(recovered), asArray(encoded));
+  assert.equal(app.decodeTextMasterSecret(recovered), "recover me\nexactly");
 });
 
 test("standard validation rejects invalid generation parameters", async () => {

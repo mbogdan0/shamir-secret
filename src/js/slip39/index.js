@@ -18,5 +18,6 @@ export { bytesToHex, compactHex, hexToBytes, normalizeHex, parseMasterSecretHex 
 export { combineMnemonics, combineMnemonicsFlexible, generateMnemonics } from "./mnemonics.js";
 export { splitSecret } from "./secret-sharing.js";
 export { Share } from "./share.js";
+export { decodeTextMasterSecret, describeTextMasterSecret, encodeTextMasterSecret, isTextMasterSecretEnvelope } from "./text-envelope.js";
 export { bitsToBytes } from "./utils.js";
 export { SLIP39_WORDS } from "./wordlist.js";

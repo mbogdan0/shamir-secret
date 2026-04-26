@@ -14,25 +14,27 @@ Run `npm run build`, then open `dist/index.html`.
 ## Scope
 
 - Standard SLIP-0039 mnemonic shares for raw master-secret bytes encoded as hex.
+- Optional text input mode that converts text to standard master-secret bytes with a reversible `SLIP39TXT` envelope.
 - Single-group `T-of-N` share generation.
 - Recovery accepts valid SLIP-0039 mnemonic shares, including official Trezor-compatible shares.
 - Master secrets must be at least 16 bytes and have a byte length that is a multiple of 2.
 - Hex input may contain whitespace for readability; whitespace is ignored before parsing.
 - The app never auto-pads odd hex or odd byte lengths. Padding would change the master secret.
+- Text input is encoded as UTF-8 without trimming or normalization, then wrapped with envelope metadata before SLIP-0039 generation.
 - Passphrases must contain only printable ASCII characters, as required by SLIP-0039.
 - Secrets, passphrases, and shares are not written to browser storage. The offline HTML also uses a restrictive Content Security Policy with no external network connections or runtime assets.
 
 ## Recovery Contract
 
-Generated shares include a recovery note: SLIP-0039 Final, single group, raw hex master secret, printable ASCII passphrase, `ext=1`, and iteration exponent `1`.
+Generated shares include a recovery note: SLIP-0039 Final, single group, raw hex master secret or `SLIP39TXT` text envelope, printable ASCII passphrase, `ext=1`, and iteration exponent `1`.
 
-Recover the shares with this app or any SLIP-0039-compatible tool using the same passphrase. The recovered result is the original master-secret bytes; in this app those bytes are displayed as lowercase hex.
+Recover the shares with this app or any SLIP-0039-compatible tool using the same passphrase. The recovered result is the original master-secret bytes; in this app those bytes are displayed as lowercase hex. When the recovered bytes contain a supported `SLIP39TXT` envelope, this app also displays the decoded text.
 
 SLIP-0039 cannot verify whether a passphrase is the intended one. A wrong passphrase can still produce recovered bytes, but they will not be the original master secret.
 
 SLIP-0039 is not BIP-0039. These shares are Shamir backup mnemonics, not BIP-0039 wallet seed phrases.
 
-Text/password convenience encoding is intentionally not part of the default flow. If a text mode is added later, it should use a documented reversible envelope with the original length, not ad hoc space or underscore padding.
+The `SLIP39TXT` v1 envelope is: ASCII magic `SLIP39TXT`, version byte `0x01`, a 4-byte big-endian UTF-8 payload length, 16 random bytes, the UTF-8 payload, and one random trailing padding byte only when needed to make the total master-secret byte length even. External SLIP-0039 tools remain compatible because they recover the envelope bytes as hex; this app can decode those bytes back to text.
 
 ## Interop Check
 
