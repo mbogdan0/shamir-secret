@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="referrer" content="no-referrer">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'">
+    <title>SLIP-0039 Shamir Secret</title>
+    <link rel="stylesheet" href="./styles.css" data-inline-style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Offline SLIP-0039</p>
+          <h1>Shamir Secret</h1>
+        </div>
+        <div class="status-pill" id="cryptoStatus">Checking Web Crypto</div>
+      </header>
+
+      <section class="workspace" aria-label="Secret sharing workspace">
+        <div class="tabs" role="tablist" aria-label="Mode">
+          <button class="tab is-active" id="generateTab" type="button" role="tab" aria-controls="generatePanel" aria-selected="true">Generate</button>
+          <button class="tab" id="recoverTab" type="button" role="tab" aria-controls="recoverPanel" aria-selected="false">Recover</button>
+        </div>
+
+        <section class="panel" id="generatePanel" role="tabpanel" aria-labelledby="generateTab">
+          <form id="generateForm" class="form-grid" autocomplete="off">
+            <label class="field field-wide">
+              <span>Master secret hex</span>
+              <textarea id="secretHexInput" rows="8" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="secretBytes" placeholder="32 hex digits minimum; whitespace is ignored; byte length must be even"></textarea>
+              <small id="secretBytes">0 bytes</small>
+            </label>
+
+            <label class="field">
+              <span>Passphrase</span>
+              <input id="generatePassphrase" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Printable ASCII only">
+            </label>
+
+            <label class="field">
+              <span>Total shares</span>
+              <input id="shareCount" type="number" min="1" max="16" step="1" value="3">
+            </label>
+
+            <label class="field">
+              <span>Threshold</span>
+              <input id="threshold" type="number" min="1" max="16" step="1" value="2">
+            </label>
+
+            <div class="actions">
+              <button class="primary" type="submit">Generate shares</button>
+              <button class="secondary" id="clearGenerate" type="button">Clear</button>
+            </div>
+          </form>
+
+          <div class="result-area" id="sharesResult" hidden>
+            <div class="result-head">
+              <h2>Shares</h2>
+              <button class="secondary" id="copyAllShares" type="button">Copy all</button>
+            </div>
+            <aside class="recovery-note" aria-label="Recovery note">
+              <h3>Recovery note</h3>
+              <dl>
+                <dt>Standard</dt>
+                <dd>SLIP-0039 Final</dd>
+                <dt>Scheme</dt>
+                <dd id="recoveryScheme">Single group T-of-N</dd>
+                <dt>Master secret</dt>
+                <dd>Raw bytes encoded as lowercase hex</dd>
+                <dt>Passphrase</dt>
+                <dd>Printable ASCII; empty string if blank</dd>
+                <dt>Parameters</dt>
+                <dd>ext=1, iteration exponent=1</dd>
+                <dt>Compatibility</dt>
+                <dd>SLIP-0039 only; not BIP-0039</dd>
+              </dl>
+            </aside>
+            <ol class="share-list" id="shareList"></ol>
+          </div>
+        </section>
+
+        <section class="panel" id="recoverPanel" role="tabpanel" aria-labelledby="recoverTab" hidden>
+          <form id="recoverForm" class="form-grid" autocomplete="off">
+            <label class="field field-wide">
+              <span>Mnemonic shares</span>
+              <textarea id="sharesInput" rows="10" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="One SLIP-0039 share per line"></textarea>
+            </label>
+
+            <label class="field">
+              <span>Passphrase</span>
+              <input id="recoverPassphrase" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Printable ASCII only">
+            </label>
+
+            <div class="actions">
+              <button class="primary" type="submit">Recover secret</button>
+              <button class="secondary" id="clearRecover" type="button">Clear</button>
+            </div>
+          </form>
+
+          <div class="result-area" id="recoverResult" hidden>
+            <div class="result-head">
+              <h2>Recovered master secret hex</h2>
+              <button class="secondary" id="copyRecovered" type="button">Copy</button>
+            </div>
+            <textarea id="recoveredHex" rows="7" readonly spellcheck="false"></textarea>
+          </div>
+        </section>
+
+        <p class="message" id="message" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script id="app-source" type="module" src="./js/app.js" data-inline-script></script>
+  </body>
+</html>
