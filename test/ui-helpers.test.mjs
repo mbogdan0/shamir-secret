@@ -8,6 +8,7 @@ import {
   parseSecretInput,
   SECRET_INPUT_MODES
 } from "../src/js/ui/secret-input.js";
+import { hashForTabMode, tabModeFromHash, UI_TABS } from "../src/js/ui/tabs.js";
 
 function makeCore() {
   return {
@@ -47,11 +48,16 @@ function makeCore() {
 test("secret input mode config exposes labels and placeholders", () => {
   assert.deepEqual(getSecretInputModeConfig(SECRET_INPUT_MODES.HEX), {
     label: "Master secret hex",
-    placeholder: "32 hex digits minimum; whitespace is ignored; byte length must be even",
-    helpText: "Hex mode shares the exact bytes from lowercase-normalized hex. Whitespace is ignored.",
+    placeholder: "At least 32 hex digits",
+    helpText: "Whitespace is ignored; byte length must be even.",
+    modeHint: "Hex stores raw bytes. Text wraps UTF-8.",
     recoveryNote: "Raw bytes encoded as lowercase hex"
   });
   assert.equal(getSecretInputModeConfig(SECRET_INPUT_MODES.TEXT).label, "Master secret text");
+  assert.equal(
+    getSecretInputModeConfig(SECRET_INPUT_MODES.TEXT).modeHint,
+    "Hex stores raw bytes. Text wraps UTF-8."
+  );
   assert.throws(() => getSecretInputModeConfig("unknown"), /Unsupported master secret input mode/);
 });
 
@@ -113,6 +119,7 @@ test("recovery output distinguishes text envelopes from raw bytes", () => {
     text: "",
     hasText: false,
     hexHeading: "Recovered master secret hex",
+    hexHelpText: "Recovered bytes as lowercase hex.",
     message: "Master secret bytes recovered. SLIP-0039 cannot verify whether the passphrase was the intended one.",
     tone: "warning"
   });
@@ -121,8 +128,19 @@ test("recovery output distinguishes text envelopes from raw bytes", () => {
     text: "decoded text",
     hasText: true,
     hexHeading: "Recovered envelope hex",
+    hexHelpText: "Canonical envelope bytes for SLIP-0039 tools.",
     message:
       "Text envelope recovered. The hex remains the canonical SLIP-0039 master-secret bytes. SLIP-0039 cannot verify whether the passphrase was the intended one.",
     tone: "warning"
   });
+});
+
+test("tab hash helpers normalize generate and recover modes", () => {
+  assert.equal(tabModeFromHash(""), UI_TABS.GENERATE);
+  assert.equal(tabModeFromHash("#generate"), UI_TABS.GENERATE);
+  assert.equal(tabModeFromHash("#recover"), UI_TABS.RECOVER);
+  assert.equal(tabModeFromHash("#other"), UI_TABS.GENERATE);
+  assert.equal(hashForTabMode(UI_TABS.GENERATE), "#generate");
+  assert.equal(hashForTabMode(UI_TABS.RECOVER), "#recover");
+  assert.equal(hashForTabMode("other"), "#generate");
 });

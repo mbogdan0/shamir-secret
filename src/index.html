@@ -16,7 +16,7 @@
           <p class="eyebrow">Offline SLIP-0039</p>
           <h1>Shamir Secret</h1>
         </div>
-        <div class="status-pill" id="cryptoStatus">Checking Web Crypto</div>
+        <div class="status-pill is-error" id="cryptoStatus" hidden>Web Crypto unavailable</div>
       </header>
 
       <section class="workspace" aria-label="Secret sharing workspace">
@@ -30,36 +30,44 @@
             <div class="field field-wide">
               <div class="field-head">
                 <label class="field-label" id="secretInputLabel" for="secretHexInput">Master secret hex</label>
-                <fieldset class="mode-toggle" aria-label="Master secret input format">
-                  <legend class="sr-only">Master secret input format</legend>
-                  <label>
-                    <input type="radio" name="secretInputMode" value="hex" checked>
-                    <span>Hex</span>
-                  </label>
-                  <label>
-                    <input type="radio" name="secretInputMode" value="text">
-                    <span>Text</span>
-                  </label>
-                </fieldset>
+                <div class="mode-control">
+                  <fieldset class="mode-toggle" aria-describedby="secretModeHint" aria-label="Master secret input format">
+                    <legend class="sr-only">Master secret input format</legend>
+                    <label>
+                      <input type="radio" name="secretInputMode" value="hex" checked>
+                      <span>Hex</span>
+                    </label>
+                    <label>
+                      <input type="radio" name="secretInputMode" value="text">
+                      <span>Text</span>
+                    </label>
+                  </fieldset>
+                </div>
               </div>
-              <textarea id="secretHexInput" rows="8" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="secretBytes secretTransform" placeholder="32 hex digits minimum; whitespace is ignored; byte length must be even"></textarea>
-              <small id="secretBytes" aria-live="polite" aria-atomic="true">0 bytes</small>
-              <small class="field-help" id="secretTransform">Hex mode shares the exact bytes from lowercase-normalized hex. Whitespace is ignored.</small>
+              <textarea id="secretHexInput" rows="8" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="secretBytes secretModeHint secretTransform" placeholder="At least 32 hex digits"></textarea>
+              <div class="field-hints">
+                <small class="field-status" id="secretBytes" aria-live="polite" aria-atomic="true">0 bytes</small>
+                <small class="field-help mode-hint" id="secretModeHint">Hex stores raw bytes. Text wraps UTF-8.</small>
+              </div>
+              <small class="field-help" id="secretTransform">Whitespace is ignored; byte length must be even.</small>
             </div>
 
             <label class="field">
               <span>Passphrase</span>
-              <input id="generatePassphrase" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Printable ASCII only">
+              <input id="generatePassphrase" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="generatePassphraseHelp" placeholder="Printable ASCII only">
+              <small class="field-help" id="generatePassphraseHelp">Optional. Use the same value to recover.</small>
             </label>
 
             <label class="field">
               <span>Total shares</span>
-              <input id="shareCount" type="number" min="1" max="16" step="1" value="3">
+              <input id="shareCount" type="number" min="1" max="16" step="1" value="3" aria-describedby="shareCountHelp">
+              <small class="field-help" id="shareCountHelp">Create 1 to 16 shares.</small>
             </label>
 
             <label class="field">
               <span>Threshold</span>
-              <input id="threshold" type="number" min="1" max="16" step="1" value="2">
+              <input id="threshold" type="number" min="1" max="16" step="1" value="2" aria-describedby="thresholdHelp">
+              <small class="field-help" id="thresholdHelp">Shares required to recover.</small>
             </label>
 
             <div class="actions">
@@ -73,6 +81,7 @@
               <h2>Shares</h2>
               <button class="secondary" id="copyAllShares" type="button">Copy all</button>
             </div>
+            <ol class="share-list" id="shareList"></ol>
             <aside class="recovery-note" aria-label="Recovery note">
               <h3>Recovery note</h3>
               <dl>
@@ -90,7 +99,6 @@
                 <dd>SLIP-0039 only; not BIP-0039</dd>
               </dl>
             </aside>
-            <ol class="share-list" id="shareList"></ol>
           </div>
         </section>
 
@@ -98,12 +106,14 @@
           <form id="recoverForm" class="form-grid" autocomplete="off">
             <label class="field field-wide">
               <span>Mnemonic shares</span>
-              <textarea id="sharesInput" rows="10" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="One SLIP-0039 share per line"></textarea>
+              <textarea id="sharesInput" rows="10" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="sharesHelp" placeholder="One SLIP-0039 share per line"></textarea>
+              <small class="field-help" id="sharesHelp">One share per line; extra valid shares are okay.</small>
             </label>
 
             <label class="field">
               <span>Passphrase</span>
-              <input id="recoverPassphrase" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Printable ASCII only">
+              <input id="recoverPassphrase" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="recoverPassphraseHelp" placeholder="Printable ASCII only">
+              <small class="field-help" id="recoverPassphraseHelp">Leave blank if none was used.</small>
             </label>
 
             <div class="actions">
@@ -124,7 +134,8 @@
               <label class="result-label" id="recoveredHexHeading" for="recoveredHex">Recovered master secret hex</label>
               <button class="secondary" id="copyRecovered" type="button">Copy recovered hex</button>
             </div>
-            <textarea id="recoveredHex" rows="7" readonly spellcheck="false"></textarea>
+            <small class="field-help result-help" id="recoveredHexHelp">Recovered bytes as lowercase hex.</small>
+            <textarea id="recoveredHex" rows="7" readonly spellcheck="false" aria-describedby="recoveredHexHelp"></textarea>
           </div>
         </section>
 

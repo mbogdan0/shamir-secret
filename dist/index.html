@@ -146,13 +146,16 @@ h2 {
 
 .form-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px 180px;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 180px) minmax(160px, 180px);
+  align-items: start;
   gap: 16px;
 }
 
 .field {
   display: grid;
-  gap: 7px;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
 }
 
 .field-wide {
@@ -176,14 +179,44 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 40px;
 }
 
-.field small {
+.mode-control {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+}
+
+.mode-hint {
+  flex: 1 1 auto;
+  max-width: none;
+  text-align: right;
+}
+
+.field small,
+.result-help {
   color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .field-help {
-  max-width: 760px;
+  display: block;
+  max-width: 720px;
+}
+
+.field-hints {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 16px;
+  flex-wrap: wrap;
+}
+
+.field-status {
+  flex: 0 0 auto;
+  font-weight: 700;
 }
 
 .field small.is-error {
@@ -197,6 +230,7 @@ h2 {
 input,
 textarea {
   width: 100%;
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfd;
@@ -314,6 +348,12 @@ button:disabled {
   border-color: #aeb8c2;
 }
 
+.secondary.is-copied {
+  border-color: #a8d4bf;
+  background: #eef8f3;
+  color: var(--ok);
+}
+
 .result-area {
   margin-top: 22px;
   border-top: 1px solid var(--line);
@@ -334,10 +374,10 @@ button:disabled {
 }
 
 .recovery-note {
-  margin: 0 0 16px;
-  border: 1px solid #bfd7d2;
+  margin: 16px 0 0;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #f2fbf7;
+  background: #fbfcfd;
   padding: 13px 14px;
 }
 
@@ -411,6 +451,12 @@ button:disabled {
   color: var(--ok);
 }
 
+.result-help {
+  display: block;
+  margin: -4px 0 10px;
+  max-width: none;
+}
+
 @media (max-width: 760px) {
   .shell {
     width: min(100vw - 20px, 1120px);
@@ -437,6 +483,22 @@ button:disabled {
   .field-head {
     align-items: start;
     flex-direction: column;
+    min-height: 0;
+  }
+
+  .mode-control {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .field-hints {
+    align-items: start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .mode-hint {
+    text-align: left;
   }
 
   .mode-toggle {
@@ -473,7 +535,7 @@ button:disabled {
           <p class="eyebrow">Offline SLIP-0039</p>
           <h1>Shamir Secret</h1>
         </div>
-        <div class="status-pill" id="cryptoStatus">Checking Web Crypto</div>
+        <div class="status-pill is-error" id="cryptoStatus" hidden>Web Crypto unavailable</div>
       </header>
 
       <section class="workspace" aria-label="Secret sharing workspace">
@@ -487,36 +549,44 @@ button:disabled {
             <div class="field field-wide">
               <div class="field-head">
                 <label class="field-label" id="secretInputLabel" for="secretHexInput">Master secret hex</label>
-                <fieldset class="mode-toggle" aria-label="Master secret input format">
-                  <legend class="sr-only">Master secret input format</legend>
-                  <label>
-                    <input type="radio" name="secretInputMode" value="hex" checked>
-                    <span>Hex</span>
-                  </label>
-                  <label>
-                    <input type="radio" name="secretInputMode" value="text">
-                    <span>Text</span>
-                  </label>
-                </fieldset>
+                <div class="mode-control">
+                  <fieldset class="mode-toggle" aria-describedby="secretModeHint" aria-label="Master secret input format">
+                    <legend class="sr-only">Master secret input format</legend>
+                    <label>
+                      <input type="radio" name="secretInputMode" value="hex" checked>
+                      <span>Hex</span>
+                    </label>
+                    <label>
+                      <input type="radio" name="secretInputMode" value="text">
+                      <span>Text</span>
+                    </label>
+                  </fieldset>
+                </div>
               </div>
-              <textarea id="secretHexInput" rows="8" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="secretBytes secretTransform" placeholder="32 hex digits minimum; whitespace is ignored; byte length must be even"></textarea>
-              <small id="secretBytes" aria-live="polite" aria-atomic="true">0 bytes</small>
-              <small class="field-help" id="secretTransform">Hex mode shares the exact bytes from lowercase-normalized hex. Whitespace is ignored.</small>
+              <textarea id="secretHexInput" rows="8" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="secretBytes secretModeHint secretTransform" placeholder="At least 32 hex digits"></textarea>
+              <div class="field-hints">
+                <small class="field-status" id="secretBytes" aria-live="polite" aria-atomic="true">0 bytes</small>
+                <small class="field-help mode-hint" id="secretModeHint">Hex stores raw bytes. Text wraps UTF-8.</small>
+              </div>
+              <small class="field-help" id="secretTransform">Whitespace is ignored; byte length must be even.</small>
             </div>
 
             <label class="field">
               <span>Passphrase</span>
-              <input id="generatePassphrase" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Printable ASCII only">
+              <input id="generatePassphrase" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="generatePassphraseHelp" placeholder="Printable ASCII only">
+              <small class="field-help" id="generatePassphraseHelp">Optional. Use the same value to recover.</small>
             </label>
 
             <label class="field">
               <span>Total shares</span>
-              <input id="shareCount" type="number" min="1" max="16" step="1" value="3">
+              <input id="shareCount" type="number" min="1" max="16" step="1" value="3" aria-describedby="shareCountHelp">
+              <small class="field-help" id="shareCountHelp">Create 1 to 16 shares.</small>
             </label>
 
             <label class="field">
               <span>Threshold</span>
-              <input id="threshold" type="number" min="1" max="16" step="1" value="2">
+              <input id="threshold" type="number" min="1" max="16" step="1" value="2" aria-describedby="thresholdHelp">
+              <small class="field-help" id="thresholdHelp">Shares required to recover.</small>
             </label>
 
             <div class="actions">
@@ -530,6 +600,7 @@ button:disabled {
               <h2>Shares</h2>
               <button class="secondary" id="copyAllShares" type="button">Copy all</button>
             </div>
+            <ol class="share-list" id="shareList"></ol>
             <aside class="recovery-note" aria-label="Recovery note">
               <h3>Recovery note</h3>
               <dl>
@@ -547,7 +618,6 @@ button:disabled {
                 <dd>SLIP-0039 only; not BIP-0039</dd>
               </dl>
             </aside>
-            <ol class="share-list" id="shareList"></ol>
           </div>
         </section>
 
@@ -555,12 +625,14 @@ button:disabled {
           <form id="recoverForm" class="form-grid" autocomplete="off">
             <label class="field field-wide">
               <span>Mnemonic shares</span>
-              <textarea id="sharesInput" rows="10" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="One SLIP-0039 share per line"></textarea>
+              <textarea id="sharesInput" rows="10" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="sharesHelp" placeholder="One SLIP-0039 share per line"></textarea>
+              <small class="field-help" id="sharesHelp">One share per line; extra valid shares are okay.</small>
             </label>
 
             <label class="field">
               <span>Passphrase</span>
-              <input id="recoverPassphrase" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Printable ASCII only">
+              <input id="recoverPassphrase" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="recoverPassphraseHelp" placeholder="Printable ASCII only">
+              <small class="field-help" id="recoverPassphraseHelp">Leave blank if none was used.</small>
             </label>
 
             <div class="actions">
@@ -581,7 +653,8 @@ button:disabled {
               <label class="result-label" id="recoveredHexHeading" for="recoveredHex">Recovered master secret hex</label>
               <button class="secondary" id="copyRecovered" type="button">Copy recovered hex</button>
             </div>
-            <textarea id="recoveredHex" rows="7" readonly spellcheck="false"></textarea>
+            <small class="field-help result-help" id="recoveredHexHelp">Recovered bytes as lowercase hex.</small>
+            <textarea id="recoveredHex" rows="7" readonly spellcheck="false" aria-describedby="recoveredHexHelp"></textarea>
           </div>
         </section>
 
@@ -1552,18 +1625,27 @@ button:disabled {
 
   // src/js/ui/clipboard.js
   async function copyText(text) {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return;
+    const canUseClipboardApi = location.protocol !== "file:" && globalThis.isSecureContext && navigator.clipboard?.writeText;
+    if (canUseClipboardApi) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return;
+      } catch {
+      }
     }
     const scratch = document.createElement("textarea");
     scratch.value = text;
     scratch.style.position = "fixed";
     scratch.style.left = "-9999px";
     document.body.append(scratch);
+    scratch.focus();
     scratch.select();
-    document.execCommand("copy");
+    scratch.setSelectionRange(0, scratch.value.length);
+    const copied = document.execCommand("copy");
     scratch.remove();
+    if (!copied) {
+      throw new Error("Copy failed.");
+    }
   }
 
   // src/js/ui/dom.js
@@ -1593,6 +1675,7 @@ button:disabled {
       secretInputLabel: requiredElement("#secretInputLabel"),
       secretHexInput: requiredElement("#secretHexInput"),
       secretInputModes: requiredElements("input[name='secretInputMode']"),
+      secretModeHint: requiredElement("#secretModeHint"),
       secretBytes: requiredElement("#secretBytes"),
       secretTransform: requiredElement("#secretTransform"),
       generatePassphrase: requiredElement("#generatePassphrase"),
@@ -1608,6 +1691,7 @@ button:disabled {
       recoveredTextBlock: requiredElement("#recoveredTextBlock"),
       recoveredText: requiredElement("#recoveredText"),
       recoveredHexHeading: requiredElement("#recoveredHexHeading"),
+      recoveredHexHelp: requiredElement("#recoveredHexHelp"),
       recoveredHex: requiredElement("#recoveredHex"),
       message: requiredElement("#message"),
       copyAllShares: requiredElement("#copyAllShares"),
@@ -1640,6 +1724,7 @@ button:disabled {
         text: "",
         hasText: false,
         hexHeading: "Recovered master secret hex",
+        hexHelpText: "Recovered bytes as lowercase hex.",
         message: "Master secret bytes recovered. SLIP-0039 cannot verify whether the passphrase was the intended one.",
         tone: "warning"
       };
@@ -1649,6 +1734,7 @@ button:disabled {
       text,
       hasText: true,
       hexHeading: "Recovered envelope hex",
+      hexHelpText: "Canonical envelope bytes for SLIP-0039 tools.",
       message: "Text envelope recovered. The hex remains the canonical SLIP-0039 master-secret bytes. SLIP-0039 cannot verify whether the passphrase was the intended one.",
       tone: "warning"
     };
@@ -1658,6 +1744,7 @@ button:disabled {
     elements.recoveredTextBlock.hidden = !output.hasText;
     elements.recoveredText.value = output.text;
     elements.recoveredHexHeading.textContent = output.hexHeading;
+    elements.recoveredHexHelp.textContent = output.hexHelpText;
     elements.recoveredHex.value = output.hex;
     elements.recoverResult.hidden = false;
     return output;
@@ -1667,6 +1754,7 @@ button:disabled {
     elements.recoveredTextBlock.hidden = true;
     elements.recoveredText.value = "";
     elements.recoveredHexHeading.textContent = "Recovered master secret hex";
+    elements.recoveredHexHelp.textContent = "Recovered bytes as lowercase hex.";
     elements.recoveredHex.value = "";
   }
 
@@ -1678,14 +1766,16 @@ button:disabled {
   var MODE_CONFIG = Object.freeze({
     [SECRET_INPUT_MODES.HEX]: {
       label: "Master secret hex",
-      placeholder: "32 hex digits minimum; whitespace is ignored; byte length must be even",
-      helpText: "Hex mode shares the exact bytes from lowercase-normalized hex. Whitespace is ignored.",
+      placeholder: "At least 32 hex digits",
+      helpText: "Whitespace is ignored; byte length must be even.",
+      modeHint: "Hex stores raw bytes. Text wraps UTF-8.",
       recoveryNote: "Raw bytes encoded as lowercase hex"
     },
     [SECRET_INPUT_MODES.TEXT]: {
       label: "Master secret text",
-      placeholder: "Enter any text; whitespace and new lines are preserved",
-      helpText: "Text mode stores UTF-8 in a SLIP39TXT v1 envelope with original length, 16 random bytes, and one random padding byte only when needed.",
+      placeholder: "Enter text to protect",
+      helpText: "Spacing and new lines are preserved.",
+      modeHint: "Hex stores raw bytes. Text wraps UTF-8.",
       recoveryNote: "Text encoded as a SLIP39TXT v1 envelope; external tools recover envelope bytes as hex"
     }
   });
@@ -1773,7 +1863,7 @@ button:disabled {
   }
 
   // src/js/ui/shares.js
-  function renderShares(elements, shares, threshold, shareCount, copyText2, setMessage2) {
+  function renderShares(elements, shares, threshold, shareCount, copyShare) {
     elements.recoveryScheme.textContent = `Single group ${threshold}-of-${shareCount}`;
     elements.shareList.replaceChildren();
     shares.forEach((share, index) => {
@@ -1789,8 +1879,7 @@ button:disabled {
       button.type = "button";
       button.textContent = `Copy share ${index + 1}`;
       button.addEventListener("click", async () => {
-        await copyText2(share);
-        setMessage2(`Copied share ${index + 1}.`, "ok");
+        await copyShare(button, share, "Copied", `Copied share ${index + 1}.`);
       });
       row.append(text, button);
       item.append(row);
@@ -1799,7 +1888,24 @@ button:disabled {
     elements.sharesResult.hidden = false;
   }
 
+  // src/js/ui/tabs.js
+  var UI_TABS = Object.freeze({
+    GENERATE: "generate",
+    RECOVER: "recover"
+  });
+  function normalizeTabMode(value) {
+    return value === UI_TABS.RECOVER ? UI_TABS.RECOVER : UI_TABS.GENERATE;
+  }
+  function tabModeFromHash(hash) {
+    const value = String(hash).replace(/^#/, "");
+    return value === UI_TABS.RECOVER ? UI_TABS.RECOVER : UI_TABS.GENERATE;
+  }
+  function hashForTabMode(mode) {
+    return `#${normalizeTabMode(mode)}`;
+  }
+
   // src/js/ui/app-ui.js
+  var COPY_FEEDBACK_MS = 1400;
   function startUi(core) {
     const {
       combineMnemonicsFlexible: combineMnemonicsFlexible2,
@@ -1808,6 +1914,7 @@ button:disabled {
     } = core;
     const elements = getElements();
     const tabs = [elements.generateTab, elements.recoverTab];
+    const copyFeedbackTimers = /* @__PURE__ */ new WeakMap();
     let currentShares = [];
     function setMessage2(text, tone = "") {
       setMessage(elements, text, tone);
@@ -1818,15 +1925,32 @@ button:disabled {
     function updateRecoveryNote(mode) {
       elements.recoveryMasterSecret.textContent = getSecretInputModeConfig(mode).recoveryNote;
     }
-    function setTab(mode) {
-      const generating = mode === "generate";
+    function syncHashToTab(mode) {
+      const nextHash = hashForTabMode(mode);
+      if (globalThis.location.hash === nextHash) {
+        return;
+      }
+      if (!globalThis.location.hash && globalThis.history?.replaceState) {
+        globalThis.history.replaceState(null, "", nextHash);
+        return;
+      }
+      globalThis.location.hash = nextHash;
+    }
+    function setTab(mode, options = {}) {
+      const { clearMessage = true, syncHash = true } = options;
+      const generating = mode === UI_TABS.GENERATE;
       elements.generateTab.classList.toggle("is-active", generating);
       elements.recoverTab.classList.toggle("is-active", !generating);
       elements.generateTab.setAttribute("aria-selected", String(generating));
       elements.recoverTab.setAttribute("aria-selected", String(!generating));
       elements.generatePanel.hidden = !generating;
       elements.recoverPanel.hidden = generating;
-      setMessage2("");
+      if (syncHash) {
+        syncHashToTab(generating ? UI_TABS.GENERATE : UI_TABS.RECOVER);
+      }
+      if (clearMessage) {
+        setMessage2("");
+      }
     }
     function focusTab(index) {
       tabs[index].focus();
@@ -1856,8 +1980,9 @@ button:disabled {
       elements.secretInputLabel.textContent = config.label;
       elements.secretHexInput.placeholder = config.placeholder;
       elements.secretHexInput.classList.toggle("is-text-mode", mode === SECRET_INPUT_MODES.TEXT);
+      elements.secretModeHint.textContent = config.modeHint;
       elements.secretBytes.textContent = status.text;
-      elements.secretBytes.className = status.tone ? `is-${status.tone}` : "";
+      elements.secretBytes.className = ["field-status", status.tone ? `is-${status.tone}` : ""].filter(Boolean).join(" ");
       elements.secretTransform.textContent = status.helpText;
     }
     function resetGenerateResult() {
@@ -1865,10 +1990,32 @@ button:disabled {
       elements.shareList.replaceChildren();
       currentShares = [];
     }
-    elements.generateTab.addEventListener("click", () => setTab("generate"));
-    elements.recoverTab.addEventListener("click", () => setTab("recover"));
+    async function copyWithFeedback(button, text, copiedLabel, statusMessage) {
+      const originalLabel = button.dataset.originalLabel || button.textContent;
+      button.dataset.originalLabel = originalLabel;
+      try {
+        await copyText(text);
+      } catch {
+        setMessage2("Copy failed. Check browser clipboard permissions.", "error");
+        return;
+      }
+      setMessage2(statusMessage, "ok");
+      button.textContent = copiedLabel;
+      button.classList.add("is-copied");
+      clearTimeout(copyFeedbackTimers.get(button));
+      copyFeedbackTimers.set(button, setTimeout(() => {
+        button.textContent = originalLabel;
+        button.classList.remove("is-copied");
+        copyFeedbackTimers.delete(button);
+      }, COPY_FEEDBACK_MS));
+    }
+    elements.generateTab.addEventListener("click", () => setTab(UI_TABS.GENERATE));
+    elements.recoverTab.addEventListener("click", () => setTab(UI_TABS.RECOVER));
     elements.generateTab.addEventListener("keydown", handleTabKeydown);
     elements.recoverTab.addEventListener("keydown", handleTabKeydown);
+    globalThis.addEventListener("hashchange", () => {
+      setTab(tabModeFromHash(globalThis.location.hash), { syncHash: false });
+    });
     elements.secretHexInput.addEventListener("input", updateSecretInput);
     for (const input of elements.secretInputModes) {
       input.addEventListener("change", updateSecretInput);
@@ -1889,7 +2036,7 @@ button:disabled {
           elements.generatePassphrase.value
         );
         currentShares = shares;
-        renderShares(elements, shares, threshold, shareCount, copyText, setMessage2);
+        renderShares(elements, shares, threshold, shareCount, copyWithFeedback);
         updateRecoveryNote(mode);
         setMessage2("Shares generated. Store each share separately.", "ok");
       } catch (error) {
@@ -1916,16 +2063,13 @@ button:disabled {
       }
     });
     elements.copyAllShares.addEventListener("click", async () => {
-      await copyText(currentShares.join("\n"));
-      setMessage2("Copied all shares.", "ok");
+      await copyWithFeedback(elements.copyAllShares, currentShares.join("\n"), "Copied all", "Copied all shares.");
     });
     elements.copyRecovered.addEventListener("click", async () => {
-      await copyText(elements.recoveredHex.value);
-      setMessage2("Copied recovered hex.", "ok");
+      await copyWithFeedback(elements.copyRecovered, elements.recoveredHex.value, "Copied", "Copied recovered hex.");
     });
     elements.copyRecoveredText.addEventListener("click", async () => {
-      await copyText(elements.recoveredText.value);
-      setMessage2("Copied recovered text.", "ok");
+      await copyWithFeedback(elements.copyRecoveredText, elements.recoveredText.value, "Copied", "Copied recovered text.");
     });
     elements.clearGenerate.addEventListener("click", () => {
       elements.secretHexInput.value = "";
@@ -1941,15 +2085,17 @@ button:disabled {
       clearRecoveryOutput(elements);
       setMessage2("");
     });
+    updateRecoveryNote(SECRET_INPUT_MODES.HEX);
+    updateSecretInput();
+    setTab(tabModeFromHash(globalThis.location.hash), { clearMessage: false });
     if (hasRequiredCrypto2()) {
-      elements.cryptoStatus.textContent = "Web Crypto ready";
+      elements.cryptoStatus.hidden = true;
     } else {
       elements.cryptoStatus.textContent = "Web Crypto unavailable";
+      elements.cryptoStatus.hidden = false;
       elements.cryptoStatus.classList.add("is-error");
       setMessage2("This browser cannot run the required Web Crypto operations.", "error");
     }
-    updateRecoveryNote(SECRET_INPUT_MODES.HEX);
-    updateSecretInput();
   }
 
   // src/js/app.js

@@ -1,4 +1,4 @@
-export function renderShares(elements, shares, threshold, shareCount, copyText, setMessage) {
+export function renderShares(elements, shares, threshold, shareCount, copyShare) {
   elements.recoveryScheme.textContent = `Single group ${threshold}-of-${shareCount}`;
   elements.shareList.replaceChildren();
 
@@ -15,8 +15,7 @@ export function renderShares(elements, shares, threshold, shareCount, copyText, 
     button.type = "button";
     button.textContent = `Copy share ${index + 1}`;
     button.addEventListener("click", async () => {
-      await copyText(share);
-      setMessage(`Copied share ${index + 1}.`, "ok");
+      await copyShare(button, share, "Copied", `Copied share ${index + 1}.`);
     });
     row.append(text, button);
     item.append(row);

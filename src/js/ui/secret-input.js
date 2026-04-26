@@ -6,15 +6,16 @@ export const SECRET_INPUT_MODES = Object.freeze({
 const MODE_CONFIG = Object.freeze({
   [SECRET_INPUT_MODES.HEX]: {
     label: "Master secret hex",
-    placeholder: "32 hex digits minimum; whitespace is ignored; byte length must be even",
-    helpText: "Hex mode shares the exact bytes from lowercase-normalized hex. Whitespace is ignored.",
+    placeholder: "At least 32 hex digits",
+    helpText: "Whitespace is ignored; byte length must be even.",
+    modeHint: "Hex stores raw bytes. Text wraps UTF-8.",
     recoveryNote: "Raw bytes encoded as lowercase hex"
   },
   [SECRET_INPUT_MODES.TEXT]: {
     label: "Master secret text",
-    placeholder: "Enter any text; whitespace and new lines are preserved",
-    helpText:
-      "Text mode stores UTF-8 in a SLIP39TXT v1 envelope with original length, 16 random bytes, and one random padding byte only when needed.",
+    placeholder: "Enter text to protect",
+    helpText: "Spacing and new lines are preserved.",
+    modeHint: "Hex stores raw bytes. Text wraps UTF-8.",
     recoveryNote: "Text encoded as a SLIP39TXT v1 envelope; external tools recover envelope bytes as hex"
   }
 });

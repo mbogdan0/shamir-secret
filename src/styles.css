@@ -136,13 +136,16 @@ h2 {
 
 .form-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px 180px;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 180px) minmax(160px, 180px);
+  align-items: start;
   gap: 16px;
 }
 
 .field {
   display: grid;
-  gap: 7px;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
 }
 
 .field-wide {
@@ -166,14 +169,44 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 40px;
 }
 
-.field small {
+.mode-control {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+}
+
+.mode-hint {
+  flex: 1 1 auto;
+  max-width: none;
+  text-align: right;
+}
+
+.field small,
+.result-help {
   color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .field-help {
-  max-width: 760px;
+  display: block;
+  max-width: 720px;
+}
+
+.field-hints {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 16px;
+  flex-wrap: wrap;
+}
+
+.field-status {
+  flex: 0 0 auto;
+  font-weight: 700;
 }
 
 .field small.is-error {
@@ -187,6 +220,7 @@ h2 {
 input,
 textarea {
   width: 100%;
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfd;
@@ -304,6 +338,12 @@ button:disabled {
   border-color: #aeb8c2;
 }
 
+.secondary.is-copied {
+  border-color: #a8d4bf;
+  background: #eef8f3;
+  color: var(--ok);
+}
+
 .result-area {
   margin-top: 22px;
   border-top: 1px solid var(--line);
@@ -324,10 +364,10 @@ button:disabled {
 }
 
 .recovery-note {
-  margin: 0 0 16px;
-  border: 1px solid #bfd7d2;
+  margin: 16px 0 0;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #f2fbf7;
+  background: #fbfcfd;
   padding: 13px 14px;
 }
 
@@ -401,6 +441,12 @@ button:disabled {
   color: var(--ok);
 }
 
+.result-help {
+  display: block;
+  margin: -4px 0 10px;
+  max-width: none;
+}
+
 @media (max-width: 760px) {
   .shell {
     width: min(100vw - 20px, 1120px);
@@ -427,6 +473,22 @@ button:disabled {
   .field-head {
     align-items: start;
     flex-direction: column;
+    min-height: 0;
+  }
+
+  .mode-control {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .field-hints {
+    align-items: start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .mode-hint {
+    text-align: left;
   }
 
   .mode-toggle {
