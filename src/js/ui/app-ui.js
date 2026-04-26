@@ -1,44 +1,36 @@
 import { copyText } from "./clipboard.js";
 import { getElements } from "./dom.js";
 import { parsePositiveInteger, splitSharesInput } from "./forms.js";
+import { clearRecoveryOutput, renderRecoveryOutput } from "./recovery-output.js";
+import {
+  getSecretInputModeConfig,
+  getSecretInputStatus,
+  parseSecretInput,
+  SECRET_INPUT_MODES
+} from "./secret-input.js";
 import { setBusy, setMessage as setElementMessage } from "./messages.js";
 import { renderShares } from "./shares.js";
 
 export function startUi(core) {
   const {
-    bitsToBytes,
-    bytesToHex,
     combineMnemonicsFlexible,
-    compactHex,
-    decodeTextMasterSecret,
-    describeTextMasterSecret,
-    encodeTextMasterSecret,
     generateMnemonics,
-    hasRequiredCrypto,
-    MIN_STRENGTH_BITS,
-    parseMasterSecretHex
+    hasRequiredCrypto
   } = core;
   const elements = getElements();
+  const tabs = [elements.generateTab, elements.recoverTab];
   let currentShares = [];
-  const hexPlaceholder = "32 hex digits minimum; whitespace is ignored; byte length must be even";
-  const textPlaceholder = "Enter any text; whitespace and new lines are preserved";
 
   function setMessage(text, tone = "") {
     setElementMessage(elements, text, tone);
   }
 
-  function formatByteCount(length) {
-    return `${length} byte${length === 1 ? "" : "s"}`;
+  function selectedSecretMode() {
+    return elements.secretInputModes.find((input) => input.checked)?.value ?? SECRET_INPUT_MODES.HEX;
   }
 
-  function isTextMode() {
-    return elements.secretTextMode.checked;
-  }
-
-  function updateRecoveryNote(textMode) {
-    elements.recoveryMasterSecret.textContent = textMode
-      ? "Text encoded as a SLIP39TXT v1 envelope; external tools recover envelope bytes as hex"
-      : "Raw bytes encoded as lowercase hex";
+  function updateRecoveryNote(mode) {
+    elements.recoveryMasterSecret.textContent = getSecretInputModeConfig(mode).recoveryNote;
   }
 
   function setTab(mode) {
@@ -52,70 +44,56 @@ export function startUi(core) {
     setMessage("");
   }
 
-  function updateInputMode() {
-    const textMode = isTextMode();
-    elements.secretInputLabel.textContent = textMode ? "Master secret text" : "Master secret hex";
-    elements.secretHexInput.placeholder = textMode ? textPlaceholder : hexPlaceholder;
-    updateByteCount();
+  function focusTab(index) {
+    tabs[index].focus();
+    tabs[index].click();
   }
 
-  function updateByteCount() {
-    if (isTextMode()) {
-      elements.secretBytes.className = "";
-      elements.secretTransform.textContent =
-        "Text mode encodes UTF-8, adds a SLIP39TXT v1 envelope with original length and 16 random bytes, then adds one random padding byte only when needed.";
-      try {
-        const info = describeTextMasterSecret(elements.secretHexInput.value);
-        elements.secretBytes.textContent =
-          `${formatByteCount(info.utf8ByteLength)} UTF-8; ${formatByteCount(info.masterSecretByteLength)} SLIP-0039 bytes`;
-      } catch (error) {
-        elements.secretBytes.textContent = error.message;
-        elements.secretBytes.className = "is-error";
-      }
+  function handleTabKeydown(event) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
       return;
     }
 
-    const hex = compactHex(elements.secretHexInput.value);
-    elements.secretBytes.className = "";
-    elements.secretTransform.textContent = "Hex mode shares the exact bytes from lowercase-normalized hex. Whitespace is ignored.";
-    if (hex.length === 0) {
-      elements.secretBytes.textContent = "0 bytes";
+    event.preventDefault();
+    const currentIndex = tabs.indexOf(event.currentTarget);
+    if (event.key === "Home") {
+      focusTab(0);
       return;
     }
-    if (/[^0-9a-f]/i.test(hex)) {
-      elements.secretBytes.textContent = "Only hex digits and whitespace";
-      elements.secretBytes.className = "is-error";
+    if (event.key === "End") {
+      focusTab(tabs.length - 1);
       return;
     }
-    if (hex.length % 2 !== 0) {
-      elements.secretBytes.textContent = "Odd hex digit count; fix intentionally";
-      elements.secretBytes.className = "is-error";
-      return;
-    }
-    const byteLength = hex.length / 2;
-    if (byteLength < bitsToBytes(MIN_STRENGTH_BITS)) {
-      elements.secretBytes.textContent = `${byteLength} byte${byteLength === 1 ? "" : "s"}; minimum is 16 bytes`;
-      elements.secretBytes.className = "is-warning";
-      return;
-    }
-    if (byteLength % 2 !== 0) {
-      elements.secretBytes.textContent = `${byteLength} bytes; byte length must be even; fix intentionally`;
-      elements.secretBytes.className = "is-error";
-      return;
-    }
-    elements.secretBytes.textContent = `${byteLength} bytes; normalized ${hex.length} hex digits`;
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    focusTab((currentIndex + direction + tabs.length) % tabs.length);
   }
 
-  function parseMasterSecretInput() {
-    return isTextMode()
-      ? encodeTextMasterSecret(elements.secretHexInput.value)
-      : parseMasterSecretHex(elements.secretHexInput.value);
+  function updateSecretInput() {
+    const mode = selectedSecretMode();
+    const config = getSecretInputModeConfig(mode);
+    const status = getSecretInputStatus(mode, elements.secretHexInput.value, core);
+    elements.secretInputLabel.textContent = config.label;
+    elements.secretHexInput.placeholder = config.placeholder;
+    elements.secretHexInput.classList.toggle("is-text-mode", mode === SECRET_INPUT_MODES.TEXT);
+    elements.secretBytes.textContent = status.text;
+    elements.secretBytes.className = status.tone ? `is-${status.tone}` : "";
+    elements.secretTransform.textContent = status.helpText;
+  }
+
+  function resetGenerateResult() {
+    elements.sharesResult.hidden = true;
+    elements.shareList.replaceChildren();
+    currentShares = [];
   }
 
   elements.generateTab.addEventListener("click", () => setTab("generate"));
   elements.recoverTab.addEventListener("click", () => setTab("recover"));
-  elements.secretHexInput.addEventListener("input", updateByteCount);
-  elements.secretTextMode.addEventListener("change", updateInputMode);
+  elements.generateTab.addEventListener("keydown", handleTabKeydown);
+  elements.recoverTab.addEventListener("keydown", handleTabKeydown);
+  elements.secretHexInput.addEventListener("input", updateSecretInput);
+  for (const input of elements.secretInputModes) {
+    input.addEventListener("change", updateSecretInput);
+  }
 
   elements.generateForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -123,18 +101,19 @@ export function startUi(core) {
     setMessage("");
 
     try {
-      const threshold = parsePositiveInteger(elements.threshold);
-      const shareCount = parsePositiveInteger(elements.shareCount);
-      const textMode = isTextMode();
+      const threshold = parsePositiveInteger(elements.threshold, "Threshold");
+      const shareCount = parsePositiveInteger(elements.shareCount, "Total shares");
+      const mode = selectedSecretMode();
+      const masterSecret = parseSecretInput(mode, elements.secretHexInput.value, core);
       const shares = await generateMnemonics(
         threshold,
         shareCount,
-        parseMasterSecretInput(),
+        masterSecret,
         elements.generatePassphrase.value,
       );
       currentShares = shares;
       renderShares(elements, shares, threshold, shareCount, copyText, setMessage);
-      updateRecoveryNote(textMode);
+      updateRecoveryNote(mode);
       setMessage("Shares generated. Store each share separately.", "ok");
     } catch (error) {
       elements.sharesResult.hidden = true;
@@ -152,28 +131,10 @@ export function startUi(core) {
     try {
       const mnemonics = splitSharesInput(elements.sharesInput.value);
       const recovered = await combineMnemonicsFlexible(mnemonics, elements.recoverPassphrase.value);
-      elements.recoveredHex.value = bytesToHex(recovered);
-      const recoveredText = decodeTextMasterSecret(recovered);
-      if (recoveredText === null) {
-        elements.recoveredTextBlock.hidden = true;
-        elements.recoveredText.value = "";
-        elements.recoveredHexHeading.textContent = "Recovered master secret hex";
-        setMessage("Master secret bytes recovered. SLIP-0039 cannot verify whether the passphrase was the intended one.", "warning");
-      } else {
-        elements.recoveredText.value = recoveredText;
-        elements.recoveredTextBlock.hidden = false;
-        elements.recoveredHexHeading.textContent = "Recovered envelope hex";
-        setMessage(
-          "Text envelope recovered. The hex remains the canonical SLIP-0039 master-secret bytes. SLIP-0039 cannot verify whether the passphrase was the intended one.",
-          "warning"
-        );
-      }
-      elements.recoverResult.hidden = false;
+      const output = renderRecoveryOutput(elements, recovered, core);
+      setMessage(output.message, output.tone);
     } catch (error) {
-      elements.recoverResult.hidden = true;
-      elements.recoveredTextBlock.hidden = true;
-      elements.recoveredText.value = "";
-      elements.recoveredHex.value = "";
+      clearRecoveryOutput(elements);
       setMessage(error.message, "error");
     } finally {
       setBusy(elements.recoverForm, false);
@@ -197,24 +158,17 @@ export function startUi(core) {
 
   elements.clearGenerate.addEventListener("click", () => {
     elements.secretHexInput.value = "";
-    elements.secretTextMode.checked = false;
     elements.generatePassphrase.value = "";
-    elements.sharesResult.hidden = true;
-    elements.shareList.replaceChildren();
-    currentShares = [];
-    updateRecoveryNote(false);
-    updateInputMode();
+    resetGenerateResult();
+    updateRecoveryNote(selectedSecretMode());
+    updateSecretInput();
     setMessage("");
   });
 
   elements.clearRecover.addEventListener("click", () => {
     elements.sharesInput.value = "";
     elements.recoverPassphrase.value = "";
-    elements.recoverResult.hidden = true;
-    elements.recoveredTextBlock.hidden = true;
-    elements.recoveredText.value = "";
-    elements.recoveredHexHeading.textContent = "Recovered master secret hex";
-    elements.recoveredHex.value = "";
+    clearRecoveryOutput(elements);
     setMessage("");
   });
 
@@ -226,6 +180,6 @@ export function startUi(core) {
     setMessage("This browser cannot run the required Web Crypto operations.", "error");
   }
 
-  updateRecoveryNote(false);
-  updateInputMode();
+  updateRecoveryNote(SECRET_INPUT_MODES.HEX);
+  updateSecretInput();
 }

@@ -13,7 +13,7 @@ export function renderShares(elements, shares, threshold, shareCount, copyText, 
     const button = document.createElement("button");
     button.className = "secondary";
     button.type = "button";
-    button.textContent = "Copy";
+    button.textContent = `Copy share ${index + 1}`;
     button.addEventListener("click", async () => {
       await copyText(share);
       setMessage(`Copied share ${index + 1}.`, "ok");

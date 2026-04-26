@@ -1,36 +1,52 @@
+function requiredElement(selector) {
+  const element = document.querySelector(selector);
+  if (!element) {
+    throw new Error(`Missing required element: ${selector}`);
+  }
+  return element;
+}
+
+function requiredElements(selector) {
+  const elements = [...document.querySelectorAll(selector)];
+  if (elements.length === 0) {
+    throw new Error(`Missing required elements: ${selector}`);
+  }
+  return elements;
+}
+
 export function getElements() {
   return {
-    cryptoStatus: document.querySelector("#cryptoStatus"),
-    generateTab: document.querySelector("#generateTab"),
-    recoverTab: document.querySelector("#recoverTab"),
-    generatePanel: document.querySelector("#generatePanel"),
-    recoverPanel: document.querySelector("#recoverPanel"),
-    generateForm: document.querySelector("#generateForm"),
-    recoverForm: document.querySelector("#recoverForm"),
-    secretInputLabel: document.querySelector("#secretInputLabel"),
-    secretHexInput: document.querySelector("#secretHexInput"),
-    secretTextMode: document.querySelector("#secretTextMode"),
-    secretBytes: document.querySelector("#secretBytes"),
-    secretTransform: document.querySelector("#secretTransform"),
-    generatePassphrase: document.querySelector("#generatePassphrase"),
-    recoverPassphrase: document.querySelector("#recoverPassphrase"),
-    shareCount: document.querySelector("#shareCount"),
-    threshold: document.querySelector("#threshold"),
-    sharesResult: document.querySelector("#sharesResult"),
-    shareList: document.querySelector("#shareList"),
-    recoveryScheme: document.querySelector("#recoveryScheme"),
-    recoveryMasterSecret: document.querySelector("#recoveryMasterSecret"),
-    sharesInput: document.querySelector("#sharesInput"),
-    recoverResult: document.querySelector("#recoverResult"),
-    recoveredTextBlock: document.querySelector("#recoveredTextBlock"),
-    recoveredText: document.querySelector("#recoveredText"),
-    recoveredHexHeading: document.querySelector("#recoveredHexHeading"),
-    recoveredHex: document.querySelector("#recoveredHex"),
-    message: document.querySelector("#message"),
-    copyAllShares: document.querySelector("#copyAllShares"),
-    copyRecoveredText: document.querySelector("#copyRecoveredText"),
-    copyRecovered: document.querySelector("#copyRecovered"),
-    clearGenerate: document.querySelector("#clearGenerate"),
-    clearRecover: document.querySelector("#clearRecover")
+    cryptoStatus: requiredElement("#cryptoStatus"),
+    generateTab: requiredElement("#generateTab"),
+    recoverTab: requiredElement("#recoverTab"),
+    generatePanel: requiredElement("#generatePanel"),
+    recoverPanel: requiredElement("#recoverPanel"),
+    generateForm: requiredElement("#generateForm"),
+    recoverForm: requiredElement("#recoverForm"),
+    secretInputLabel: requiredElement("#secretInputLabel"),
+    secretHexInput: requiredElement("#secretHexInput"),
+    secretInputModes: requiredElements("input[name='secretInputMode']"),
+    secretBytes: requiredElement("#secretBytes"),
+    secretTransform: requiredElement("#secretTransform"),
+    generatePassphrase: requiredElement("#generatePassphrase"),
+    recoverPassphrase: requiredElement("#recoverPassphrase"),
+    shareCount: requiredElement("#shareCount"),
+    threshold: requiredElement("#threshold"),
+    sharesResult: requiredElement("#sharesResult"),
+    shareList: requiredElement("#shareList"),
+    recoveryScheme: requiredElement("#recoveryScheme"),
+    recoveryMasterSecret: requiredElement("#recoveryMasterSecret"),
+    sharesInput: requiredElement("#sharesInput"),
+    recoverResult: requiredElement("#recoverResult"),
+    recoveredTextBlock: requiredElement("#recoveredTextBlock"),
+    recoveredText: requiredElement("#recoveredText"),
+    recoveredHexHeading: requiredElement("#recoveredHexHeading"),
+    recoveredHex: requiredElement("#recoveredHex"),
+    message: requiredElement("#message"),
+    copyAllShares: requiredElement("#copyAllShares"),
+    copyRecoveredText: requiredElement("#copyRecoveredText"),
+    copyRecovered: requiredElement("#copyRecovered"),
+    clearGenerate: requiredElement("#clearGenerate"),
+    clearRecover: requiredElement("#clearRecover")
   };
 }

@@ -1,7 +1,7 @@
-export function parsePositiveInteger(input) {
+export function parsePositiveInteger(input, label) {
   const value = Number(input.value);
   if (!Number.isInteger(value)) {
-    throw new Error(`${input.previousElementSibling.textContent} must be an integer.`);
+    throw new Error(`${label} must be an integer.`);
   }
   return value;
 }
