@@ -4,9 +4,51 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light" />
+    <meta
+      name="description"
+      content="Offline SLIP-0039 tool to generate and recover Shamir shares in your browser."
+    />
+    <meta
+      name="keywords"
+      content="SLIP-0039, Shamir Secret Sharing, mnemonic shares, offline cryptography"
+    />
+    <meta name="author" content="Shamir Secret" />
+    <meta
+      name="robots"
+      content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"
+    />
+    <meta name="application-name" content="Shamir Secret" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta property="og:title" content="SLIP-0039 Shamir Secret" />
+    <meta
+      property="og:description"
+      content="Generate and recover SLIP-0039 shares entirely offline."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Shamir Secret" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="SLIP-0039 Shamir Secret" />
+    <meta
+      name="twitter:description"
+      content="Generate and recover SLIP-0039 shares entirely offline."
+    />
     <meta name="referrer" content="no-referrer" />
     <!-- __INLINE_CSP__ -->
     <title>SLIP-0039 Shamir Secret</title>
+    <script>
+      (() => {
+        const titleWords = (document.title || "Shamir Secret").trim().split(/\s+/).filter(Boolean);
+        const initials = (titleWords.map((word) => word[0]).join("") || "SS")
+          .slice(0, 2)
+          .toUpperCase();
+        const svg = `<svg viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='#0f172a'/><text x='50%' y='53%' text-anchor='middle' dominant-baseline='middle' font-size='28' font-family='ui-sans-serif,sans-serif' font-weight='700' fill='#f8fafc'>${initials}</text></svg>`;
+        const icon = document.createElement("link");
+        icon.rel = "icon";
+        icon.type = "image/svg+xml";
+        icon.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+        document.head.append(icon);
+      })();
+    </script>
     <link rel="stylesheet" href="./styles.css" data-inline-style />
   </head>
   <body>
@@ -48,7 +90,7 @@
             <div class="field field-wide">
               <div class="field-head">
                 <label class="field-label" id="secretInputLabel" for="secretHexInput"
-                  >Master secret hex</label
+                  >Master secret text</label
                 >
                 <div class="mode-control">
                   <fieldset
@@ -58,11 +100,11 @@
                   >
                     <legend class="sr-only">Master secret input format</legend>
                     <label>
-                      <input type="radio" name="secretInputMode" value="hex" checked />
+                      <input type="radio" name="secretInputMode" value="hex" />
                       <span>Hex</span>
                     </label>
                     <label>
-                      <input type="radio" name="secretInputMode" value="text" />
+                      <input type="radio" name="secretInputMode" value="text" checked />
                       <span>Text</span>
                     </label>
                   </fieldset>
@@ -70,23 +112,24 @@
               </div>
               <textarea
                 id="secretHexInput"
+                class="is-text-mode"
                 rows="8"
                 autocomplete="off"
                 autocapitalize="none"
                 spellcheck="false"
                 aria-describedby="secretBytes secretModeHint secretTransform"
-                placeholder="At least 32 hex digits"
+                placeholder="Enter text to protect"
               ></textarea>
               <div class="field-hints">
                 <small class="field-status" id="secretBytes" aria-live="polite" aria-atomic="true"
-                  >0 bytes</small
+                  >0 UTF-8 bytes -&gt; 30 SLIP-0039 bytes</small
                 >
                 <small class="field-help mode-hint" id="secretModeHint"
                   >Hex stores raw bytes. Text wraps UTF-8.</small
                 >
               </div>
               <small class="field-help" id="secretTransform"
-                >Whitespace is ignored; byte length must be even.</small
+                >Spacing and new lines are preserved.</small
               >
             </div>
 

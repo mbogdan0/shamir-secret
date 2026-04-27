@@ -8,7 +8,15 @@ import {
   parseSecretInput,
   SECRET_INPUT_MODES
 } from "../src/js/ui/secret-input.js";
-import { hashForTabMode, tabModeFromHash, UI_TABS } from "../src/js/ui/tabs.js";
+import {
+  hrefForSecretInputMode,
+  hashForTabMode,
+  normalizeSecretInputMode,
+  searchForSecretInputMode,
+  secretInputModeFromSearch,
+  tabModeFromHash,
+  UI_TABS
+} from "../src/js/ui/tabs.js";
 
 function makeCore() {
   return {
@@ -150,4 +158,42 @@ test("tab hash helpers normalize generate and recover modes", () => {
   assert.equal(hashForTabMode(UI_TABS.GENERATE), "#generate");
   assert.equal(hashForTabMode(UI_TABS.RECOVER), "#recover");
   assert.equal(hashForTabMode("other"), "#generate");
+});
+
+test("secret input mode helpers parse query values and normalize defaults", () => {
+  assert.equal(normalizeSecretInputMode("hex"), SECRET_INPUT_MODES.HEX);
+  assert.equal(normalizeSecretInputMode("text"), SECRET_INPUT_MODES.TEXT);
+  assert.equal(normalizeSecretInputMode("other"), SECRET_INPUT_MODES.TEXT);
+  assert.equal(secretInputModeFromSearch(""), SECRET_INPUT_MODES.TEXT);
+  assert.equal(secretInputModeFromSearch("?"), SECRET_INPUT_MODES.TEXT);
+  assert.equal(secretInputModeFromSearch("?input=hex"), SECRET_INPUT_MODES.HEX);
+  assert.equal(secretInputModeFromSearch("?input=text"), SECRET_INPUT_MODES.TEXT);
+  assert.equal(secretInputModeFromSearch("?foo=1&input=hex&bar=2"), SECRET_INPUT_MODES.HEX);
+  assert.equal(secretInputModeFromSearch("?foo=1&input=other&bar=2"), SECRET_INPUT_MODES.TEXT);
+});
+
+test("secret input mode URL helpers preserve unrelated params and hash", () => {
+  assert.equal(searchForSecretInputMode("", SECRET_INPUT_MODES.TEXT), "?input=text");
+  assert.equal(
+    searchForSecretInputMode("?foo=1&bar=2", SECRET_INPUT_MODES.HEX),
+    "?foo=1&bar=2&input=hex"
+  );
+  assert.equal(
+    searchForSecretInputMode("?foo=1&input=hex&bar=2", SECRET_INPUT_MODES.TEXT),
+    "?foo=1&input=text&bar=2"
+  );
+  assert.equal(
+    hrefForSecretInputMode(
+      { pathname: "/app/index.html", search: "?foo=1&bar=2", hash: "#recover" },
+      SECRET_INPUT_MODES.HEX
+    ),
+    "/app/index.html?foo=1&bar=2&input=hex#recover"
+  );
+  assert.equal(
+    hrefForSecretInputMode(
+      { pathname: "/app/index.html", search: "?input=other&foo=1", hash: "#generate" },
+      "other"
+    ),
+    "/app/index.html?input=text&foo=1#generate"
+  );
 });

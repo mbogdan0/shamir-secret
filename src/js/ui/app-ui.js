@@ -10,7 +10,15 @@ import {
 } from "./secret-input.js";
 import { setBusy, setMessage as setElementMessage } from "./messages.js";
 import { renderShares } from "./shares.js";
-import { hashForTabMode, tabModeFromHash, UI_TABS } from "./tabs.js";
+import {
+  hrefForSecretInputMode,
+  hashForTabMode,
+  normalizeSecretInputMode,
+  searchForSecretInputMode,
+  secretInputModeFromSearch,
+  tabModeFromHash,
+  UI_TABS
+} from "./tabs.js";
 
 const COPY_FEEDBACK_MS = 1400;
 
@@ -26,9 +34,17 @@ export function startUi(core) {
   }
 
   function selectedSecretMode() {
-    return (
-      elements.secretInputModes.find((input) => input.checked)?.value ?? SECRET_INPUT_MODES.HEX
+    return normalizeSecretInputMode(
+      elements.secretInputModes.find((input) => input.checked)?.value
     );
+  }
+
+  function setSelectedSecretMode(mode) {
+    const normalizedMode = normalizeSecretInputMode(mode);
+    for (const input of elements.secretInputModes) {
+      input.checked = input.value === normalizedMode;
+    }
+    return normalizedMode;
   }
 
   function updateRecoveryNote(mode) {
@@ -45,6 +61,14 @@ export function startUi(core) {
       return;
     }
     globalThis.location.hash = nextHash;
+  }
+
+  function syncSearchToSecretMode(mode) {
+    const nextSearch = searchForSecretInputMode(globalThis.location.search, mode);
+    if (globalThis.location.search === nextSearch || !globalThis.history?.replaceState) {
+      return;
+    }
+    globalThis.history.replaceState(null, "", hrefForSecretInputMode(globalThis.location, mode));
   }
 
   function setTab(mode, options = {}) {
@@ -86,6 +110,13 @@ export function startUi(core) {
     }
     const direction = event.key === "ArrowRight" ? 1 : -1;
     focusTab((currentIndex + direction + tabs.length) % tabs.length);
+  }
+
+  function handleSecretInputModeChange() {
+    const mode = selectedSecretMode();
+    syncSearchToSecretMode(mode);
+    updateRecoveryNote(mode);
+    updateSecretInput();
   }
 
   function updateSecretInput() {
@@ -141,7 +172,7 @@ export function startUi(core) {
   });
   elements.secretHexInput.addEventListener("input", updateSecretInput);
   for (const input of elements.secretInputModes) {
-    input.addEventListener("change", updateSecretInput);
+    input.addEventListener("change", handleSecretInputModeChange);
   }
 
   elements.generateForm.addEventListener("submit", async (event) => {
@@ -233,7 +264,11 @@ export function startUi(core) {
     setMessage("");
   });
 
-  updateRecoveryNote(SECRET_INPUT_MODES.HEX);
+  const initialSecretMode = setSelectedSecretMode(
+    secretInputModeFromSearch(globalThis.location.search)
+  );
+  syncSearchToSecretMode(initialSecretMode);
+  updateRecoveryNote(initialSecretMode);
   updateSecretInput();
   setTab(tabModeFromHash(globalThis.location.hash), { clearMessage: false });
 

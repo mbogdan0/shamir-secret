@@ -1,129 +1,185 @@
 # SLIP-0039 Shamir Secret
 
-Security-focused, offline-first SLIP-0039 master-secret sharing and recovery application.
+Security-focused, offline-first SLIP-0039 share generation and recovery for browser environments.
 
-This project provides a browser UI for generating and recovering SLIP-0039 mnemonic shares while preserving a strict offline runtime model: production output is a single self-contained HTML file with inline CSS/JavaScript and no external runtime assets.
+This project intentionally prioritizes security posture, implementation transparency, and protocol correctness over feature breadth.
 
-## Project Purpose
+## 🔒 Security-Critical Summary (Read First)
 
-The goal is to provide a transparent, auditable, framework-free runtime implementation for SLIP-0039 workflows in a local browser context, with strong emphasis on deterministic behavior, explicit validation, and interoperability with upstream tooling.
+- The production artifact is a single self-contained file: `dist/index.html`.
+- Runtime is designed for offline use, with no external runtime assets.
+- Build enforces a strict CSP in production output:
+  - `default-src 'none'`
+  - `connect-src 'none'`
+  - `base-uri 'none'`
+  - `form-action 'none'`
+  - `object-src 'none'`
+- No browser persistence APIs are used for secrets (`localStorage`, `sessionStorage`, `indexedDB`, cookies).
+- Cryptographic operations use Web Crypto (`getRandomValues`, `crypto.subtle`) for RNG, HMAC-SHA256, and PBKDF2.
 
-## Features
+Critical operational caveats:
 
-- SLIP-0039 Final mnemonic generation for single-group `T-of-N` shares.
-- SLIP-0039-compatible recovery from valid mnemonic shares.
-- Optional text mode that wraps UTF-8 payloads into a reversible `SLIP39TXT` envelope before share generation.
-- Strict input validation for hex payloads, share counts, threshold values, and passphrase constraints.
-- Deterministic and interoperability-focused tests using vendored Trezor vectors.
-- Offline production artifact (`dist/index.html`) with restrictive CSP and no external runtime dependencies.
+- Browser memory is not a hardened secret boundary.
+- Clipboard contents are outside the app trust boundary after copy operations.
+- SLIP-0039 cannot confirm intended passphrase correctness.
+- This repository is not a formal third-party cryptographic audit.
 
-## Explicit Non-Goals
+## ⚠️ Threat Model and Trust Boundaries
 
-- BIP-0039 seed phrase generation or recovery.
-- Multi-group policy generation UX beyond current scope.
-- Browser storage persistence for secrets, passphrases, or generated shares.
-- Claims of formal third-party cryptographic certification or side-channel hardening.
+### In scope
 
-## Architecture Overview
+- Correctness and interoperability of SLIP-0039 processing in a local browser context.
+- Protection against accidental online dependency drift in production runtime.
+- Defensive rendering patterns for user-controlled content (safe DOM sinks).
 
-### 1. Crypto Core (`src/js/slip39`)
+### Out of scope
 
-- Implements GF(256) arithmetic, polynomial interpolation, checksum handling, share parsing/encoding, and SLIP-0039-compatible encryption/decryption flows.
-- Exposes a focused API through `src/js/slip39/index.js`.
-- Keeps compatibility behavior aligned with SLIP-0039 and upstream reference vectors.
+- Resistance to compromised hosts, malicious browser extensions, malware, or remote administration tooling.
+- Formal side-channel resistance guarantees in browser runtimes.
+- Hardware-wallet certification or formal cryptographic product assurance.
 
-### 2. UI Layer (`src/js/ui` + `src/index.html` + `src/styles.css`)
+## ✅ Security Guarantees vs ❌ Non-Guarantees
 
-- Handles generation/recovery flows, form validation messaging, tab navigation, and explicit copy actions.
-- Uses safe DOM writes (`textContent` / controlled attributes) and avoids dynamic HTML rendering for user-provided content.
+### What this codebase is designed to guarantee
 
-### 3. Build Pipeline (`scripts/build.js`)
+- Standard-compliant SLIP-0039 share encoding/decoding behavior for project scope.
+- Deterministic validation errors for malformed inputs.
+- Offline artifact constraints enforced by tests and build-time checks.
+- Safe rendering strategy for user content (no dynamic HTML insertion for shares/recovery output).
 
-- Uses Vite programmatic build orchestration to bundle runtime JavaScript and CSS.
-- Inlines generated assets into `src/index.html` placeholders.
-- Injects the strict production CSP into `dist/index.html` during build.
-- Enforces offline artifact invariants before writing `dist/index.html`:
-  - inline CSS present,
-  - inline script present and exposes `__SLIP39_APP__`,
-  - strict CSP meta present with offline-only directives,
-  - no external runtime scripts/styles/images/URLs,
-  - no unreplaced inline placeholders.
+### What this codebase explicitly does not guarantee
 
-## Development Workflow
+- Total in-memory zeroization of secret material.
+- Protection once secrets leave the app boundary (clipboard, screenshots, system telemetry).
+- Detection of wrong-but-plausible passphrase outputs beyond SLIP-0039 semantics.
+- Security claims equivalent to an independent external audit.
+
+## 🧮 Technical Foundation
+
+### Cryptographic and protocol core (`src/js/slip39`)
+
+- GF(256) arithmetic and interpolation over the AES polynomial.
+- RS1024 checksum encode/verify flow.
+- Share metadata packing/parsing (identifier, thresholds, group/member parameters).
+- SLIP-0039 encryption/decryption flow using:
+  - Feistel construction,
+  - PBKDF2-HMAC-SHA256,
+  - iteration exponent handling.
+- Validation rules for secret size, passphrase character set, and share parameters.
+
+### Security-relevant constants and constraints
+
+- Minimum master-secret strength: 128 bits (16 bytes).
+- Master-secret byte length must be even.
+- Maximum share count: 16.
+- Passphrase character set: printable ASCII.
+- Single-group generation policy with SLIP-0039 1-of-1 constraint when threshold is 1.
+
+### Text envelope mode (`SLIP39TXT v1`)
+
+`text` mode wraps UTF-8 payloads into canonical master-secret bytes before SLIP-0039 processing.
+
+Envelope structure includes:
+
+- Magic prefix: `SLIP39TXT`
+- Version byte: `1`
+- 4-byte big-endian UTF-8 length
+- 16 random header bytes
+- Optional random padding for even byte length
+
+Interoperability implications:
+
+- Generated shares are still standard SLIP-0039 shares.
+- External tools recover canonical master-secret bytes (typically shown as hex).
+- Only this app's envelope decoder reconstructs the original text payload.
+
+## 🏗️ Build and Artifact Integrity
+
+Build pipeline (`scripts/build.js`) uses Vite programmatic output and enforces production invariants:
+
+- CSS and JS are inlined into a single HTML file.
+- CSP placeholder is replaced with strict offline policy.
+- Build fails if production HTML contains:
+  - external scripts/styles/images,
+  - `http://` or `https://` runtime references,
+  - unreplaced inline placeholders.
+
+The corresponding test suite (`test/build.test.mjs`) verifies these invariants continuously.
+
+## 🧪 Verification and Quality Gates
+
+Core checks:
+
+```bash
+npm run lint
+npm test
+npm run build
+```
+
+What validation covers:
+
+- Protocol behavior and error semantics.
+- Official/vector-based interoperability checks.
+- Offline artifact invariants and CSP presence.
+- Style and formatting consistency with blocking lint policy.
+
+Pre-commit enforcement:
+
+- `husky` + `lint-staged` run format/lint checks on staged changes.
+
+## 🚀 Development Workflow
 
 ### Requirements
 
 - Node.js `>=22` (pinned via `.nvmrc`)
-- npm (bundled with Node, with `engine-strict=true` in `.npmrc`)
+- npm with `engine-strict=true` (`.npmrc`)
 
-### Install
+### Setup
 
-```sh
+```bash
 npm ci
 ```
 
 ### Commands
 
-```sh
-npm run dev          # Vite dev server for src/ (live reload)
-npm run build        # Strict offline build -> dist/index.html
-npm run preview      # Preview dist/ via Vite preview server
+```bash
+npm run dev          # Vite dev server for src/
+npm run build        # Build strict offline artifact -> dist/index.html
+npm run preview      # Preview dist/ locally
 npm test             # Node test runner
-npm run lint         # ESLint + Stylelint + Prettier check (warnings fail)
-npm run format       # Full repository formatting pass
+npm run lint         # ESLint + Stylelint + Prettier check
+npm run format       # Full repository formatting
 npm run check        # lint + test + build
 ```
 
-### Local Quality Enforcement
+## 🛠️ Operational Usage Guidance
 
-- `husky` + `lint-staged` run on `pre-commit`.
-- Staged files are formatted and linted before a commit is accepted.
-- CI and local commands both treat warnings as blocking in lint steps.
+Recommended process for high-sensitivity use:
 
-## Security Model and Operational Guidance
+1. Build locally and verify checks pass (`npm run check`).
+2. Open `dist/index.html` in a trusted local environment.
+3. Keep machine offline/disconnected during secret operations when possible.
+4. Avoid unnecessary copy operations; treat clipboard as exposed.
+5. Close browser after use to reduce residual secret exposure window.
 
-### Security Posture
+## 🚫 Explicit Non-Goals
 
-- Offline-first runtime artifact intended for local execution from file or trusted local hosting.
-- Restrictive CSP (`default-src 'none'`) is enforced in the production artifact (`dist/index.html`) with explicitly limited inline script/style allowances required by single-file delivery.
-- Development template (`src/index.html`) intentionally omits CSP so Vite runtime and HMR can load local dev assets.
-- No runtime network fetches and no browser storage persistence for sensitive data.
+- BIP-0039 seed phrase generation/recovery.
+- Multi-group policy generation UX.
+- Persistent secret storage features.
+- Claims of certified side-channel hardening.
 
-### Important Limitations
-
-- Browser memory is not a hardened secret boundary; complete zeroization is not guaranteed.
-- Clipboard use transfers risk to the host OS and surrounding environment.
-- SLIP-0039 cannot verify intended passphrase correctness; incorrect passphrases can still produce bytes.
-- This repository is not a substitute for a formal independent cryptographic audit.
-
-For deeper implementation and risk notes, see `SECURITY_REVIEW.md`.
-
-## Release and Deployment Model
-
-GitHub Pages deployment is automated by tag pushes:
-
-- Workflow file: `.github/workflows/pages.yml`
-- Trigger: `push` tags matching `v*`
-- Quality gate before deployment:
-  1. `npm ci`
-  2. `npm run lint`
-  3. `npm test`
-  4. `npm run build`
-- Only successful quality builds are published to GitHub Pages.
-
-## Compatibility and Interoperability
-
-- Recovery is compatible with valid SLIP-0039 mnemonic shares, including upstream Trezor-compatible vectors included in this repository.
-- Generated shares are SLIP-0039 shares (not BIP-0039 phrases).
-- Text mode remains interoperable at byte level by embedding text in `SLIP39TXT` envelope bytes before SLIP-0039 generation.
-
-## References
+## 📚 References
 
 - [SLIP-0039 Final Specification](https://raw.githubusercontent.com/satoshilabs/slips/master/slip-0039.md)
+- [SLIP-0039 in SatoshiLabs SLIPs Repository](https://github.com/satoshilabs/slips/blob/master/slip-0039.md)
 - [Trezor Python Reference Implementation](https://github.com/trezor/python-shamir-mnemonic)
+- [Official Trezor SLIP-0039 Test Vectors](https://raw.githubusercontent.com/trezor/python-shamir-mnemonic/master/vectors.json)
+- [Trezor Firmware Notes for SLIP-0039](https://docs.trezor.io/trezor-firmware/core/misc/slip0039.html)
 - [SLIP-0039 Wordlist](https://raw.githubusercontent.com/satoshilabs/slips/master/slip-0039/wordlist.txt)
+- [RFC 8018 (PBKDF2)](https://www.rfc-editor.org/rfc/rfc8018)
 
-See also:
+Repository documents:
 
 - `SECURITY_REVIEW.md`
 - `THIRD_PARTY_NOTICES.md`
