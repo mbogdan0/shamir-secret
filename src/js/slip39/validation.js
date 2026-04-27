@@ -13,7 +13,7 @@ export function validatePassphrase(passphrase) {
 }
 
 export function validateIdentifier(identifier) {
-  if (!Number.isInteger(identifier) || identifier < 0 || identifier >= (1 << ID_LENGTH_BITS)) {
+  if (!Number.isInteger(identifier) || identifier < 0 || identifier >= 1 << ID_LENGTH_BITS) {
     throw new Slip39Error("The SLIP-0039 identifier must be an integer from 0 to 32767.");
   }
 }

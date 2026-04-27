@@ -9,7 +9,8 @@ export function getRecoveryOutput(recovered, core) {
       hasText: false,
       hexHeading: "Recovered master secret hex",
       hexHelpText: "Recovered bytes as lowercase hex.",
-      message: "Master secret bytes recovered. SLIP-0039 cannot verify whether the passphrase was the intended one.",
+      message:
+        "Master secret bytes recovered. SLIP-0039 cannot verify whether the passphrase was the intended one.",
       tone: "warning"
     };
   }

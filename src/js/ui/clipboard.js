@@ -1,5 +1,6 @@
 export async function copyText(text) {
-  const canUseClipboardApi = location.protocol !== "file:" && globalThis.isSecureContext && navigator.clipboard?.writeText;
+  const canUseClipboardApi =
+    location.protocol !== "file:" && globalThis.isSecureContext && navigator.clipboard?.writeText;
   if (canUseClipboardApi) {
     try {
       await navigator.clipboard.writeText(text);

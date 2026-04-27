@@ -1,0 +1,6 @@
+dist/
+node_modules/
+.cache/
+coverage/
+.idea/
+.husky/_/

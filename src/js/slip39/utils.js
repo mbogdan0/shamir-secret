@@ -91,7 +91,7 @@ export function intToIndices(value, length, radixBits = RADIX_BITS) {
 export function intFromIndices(indices, radixBits = RADIX_BITS) {
   let value = 0n;
   for (const index of indices) {
-    if (!Number.isInteger(index) || index < 0 || index >= (1 << radixBits)) {
+    if (!Number.isInteger(index) || index < 0 || index >= 1 << radixBits) {
       throw new Slip39Error("Invalid word index.");
     }
     value = (value << BigInt(radixBits)) | BigInt(index);

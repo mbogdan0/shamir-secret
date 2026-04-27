@@ -121,7 +121,10 @@ test("RS1024 checksum round trips", async () => {
   const checksum = createChecksum(data, "shamir_extendable");
   assert.equal(checksum.length, 3);
   assert.equal(verifyChecksum([...data, ...checksum], "shamir_extendable"), true);
-  assert.equal(verifyChecksum([...data, checksum[0], checksum[1], checksum[2] ^ 1], "shamir_extendable"), false);
+  assert.equal(
+    verifyChecksum([...data, checksum[0], checksum[1], checksum[2] ^ 1], "shamir_extendable"),
+    false
+  );
 });
 
 test("mnemonic encode and decode round trip", async () => {
@@ -148,7 +151,10 @@ test("single-group 3-of-5 generation and recovery works", async () => {
   const { bytesToHex, combineMnemonics, generateMnemonics } = await appPromise;
   const shares = await generateMnemonics(3, 5, SECRET_32, "");
   assert.equal(shares.length, 5);
-  assert.equal(bytesToHex(await combineMnemonics([shares[1], shares[3], shares[4]], "")), SECRET_32_HEX);
+  assert.equal(
+    bytesToHex(await combineMnemonics([shares[1], shares[3], shares[4]], "")),
+    SECRET_32_HEX
+  );
 });
 
 test("deterministic generation fixtures are recoverable by Trezor reference", async () => {
@@ -164,7 +170,9 @@ test("deterministic generation fixtures are recoverable by Trezor reference", as
 
     assert.deepEqual([...shares], fixture.mnemonics, fixture.name);
     assert.equal(
-      app.bytesToHex(await app.combineMnemonics(shares.slice(0, fixture.threshold), fixture.passphrase)),
+      app.bytesToHex(
+        await app.combineMnemonics(shares.slice(0, fixture.threshold), fixture.passphrase)
+      ),
       fixture.secretHex,
       fixture.name
     );
@@ -215,8 +223,14 @@ test("hex helpers and master secret parsing validate pure byte input", async () 
   assert.deepEqual(asArray(hexToBytes("000102ff")), [0, 1, 2, 255]);
   assert.deepEqual(asArray(hexToBytes("00 01\n02\tff")), [0, 1, 2, 255]);
   assert.equal(bytesToHex(new Uint8Array([0, 1, 2, 255])), "000102ff");
-  assert.equal(normalizeHex(`  ${SECRET_16_HEX.slice(0, 12).toUpperCase()}\n${SECRET_16_HEX.slice(12)}  `), SECRET_16_HEX);
-  assert.equal(bytesToHex(parseMasterSecretHex(`  ${SECRET_16_HEX.toUpperCase()}  `)), SECRET_16_HEX);
+  assert.equal(
+    normalizeHex(`  ${SECRET_16_HEX.slice(0, 12).toUpperCase()}\n${SECRET_16_HEX.slice(12)}  `),
+    SECRET_16_HEX
+  );
+  assert.equal(
+    bytesToHex(parseMasterSecretHex(`  ${SECRET_16_HEX.toUpperCase()}  `)),
+    SECRET_16_HEX
+  );
 
   assert.throws(() => parseMasterSecretHex(""), /empty/);
   assert.throws(() => parseMasterSecretHex("zz"), /hex digits and whitespace/);
@@ -285,11 +299,8 @@ test("text master secret envelopes round-trip user text", async () => {
 });
 
 test("text envelope decoder ignores unsupported or malformed bytes", async () => {
-  const {
-    decodeTextMasterSecret,
-    encodeTextMasterSecret,
-    isTextMasterSecretEnvelope
-  } = await loadAppCore(deterministicCrypto());
+  const { decodeTextMasterSecret, encodeTextMasterSecret, isTextMasterSecretEnvelope } =
+    await loadAppCore(deterministicCrypto());
   const valid = encodeTextMasterSecret("a");
   const badVersion = new Uint8Array(valid);
   badVersion["SLIP39TXT".length] = 2;
@@ -322,8 +333,14 @@ test("standard validation rejects invalid generation parameters", async () => {
   await assert.rejects(() => generateMnemonics(2, 17, SECRET_16, ""), /must not exceed 16/);
   await assert.rejects(() => generateMnemonics(1, 2, SECRET_16, ""), /requires 1-of-1/);
   await assert.rejects(() => generateMnemonics(2, 3, SECRET_16, "bad\u2603"), /printable ASCII/);
-  await assert.rejects(() => generateMnemonics(2, 3, SECRET_16, "", { identifier: -1 }), /identifier/);
-  await assert.rejects(() => generateMnemonics(2, 3, SECRET_16, "", { identifier: 32768 }), /identifier/);
+  await assert.rejects(
+    () => generateMnemonics(2, 3, SECRET_16, "", { identifier: -1 }),
+    /identifier/
+  );
+  await assert.rejects(
+    () => generateMnemonics(2, 3, SECRET_16, "", { identifier: 32768 }),
+    /identifier/
+  );
 });
 
 test("parsed shares reject invalid checksum, duplicates, mismatches, and group index", async () => {
@@ -351,19 +368,31 @@ test("wrong passphrase returns different bytes without app-specific rejection", 
 
 test("recovery supports original and extendable checksum variants", async () => {
   const { Share, bytesToHex, combineMnemonics, generateMnemonics } = await appPromise;
-  const original = await generateMnemonics(2, 3, SECRET_16, "", { identifier: 42, extendable: false });
-  const extendable = await generateMnemonics(2, 3, SECRET_16, "", { identifier: 42, extendable: true });
+  const original = await generateMnemonics(2, 3, SECRET_16, "", {
+    identifier: 42,
+    extendable: false
+  });
+  const extendable = await generateMnemonics(2, 3, SECRET_16, "", {
+    identifier: 42,
+    extendable: true
+  });
 
   assert.equal(Share.fromMnemonic(original[0]).extendable, false);
   assert.equal(Share.fromMnemonic(extendable[0]).extendable, true);
   assert.equal(bytesToHex(await combineMnemonics([original[0], original[1]], "")), SECRET_16_HEX);
-  assert.equal(bytesToHex(await combineMnemonics([extendable[0], extendable[1]], "")), SECRET_16_HEX);
+  assert.equal(
+    bytesToHex(await combineMnemonics([extendable[0], extendable[1]], "")),
+    SECRET_16_HEX
+  );
 });
 
 test("non-ASCII recovery passphrases are rejected", async () => {
   const { combineMnemonics, generateMnemonics } = await appPromise;
   const shares = await generateMnemonics(2, 3, SECRET_16, "");
-  await assert.rejects(() => combineMnemonics([shares[0], shares[1]], "bad\u2603"), /printable ASCII/);
+  await assert.rejects(
+    () => combineMnemonics([shares[0], shares[1]], "bad\u2603"),
+    /printable ASCII/
+  );
 });
 
 test("vendored official Trezor SLIP-0039 vectors", async () => {
@@ -383,12 +412,9 @@ test("vendored official Trezor SLIP-0039 vectors", async () => {
       coverage.valid128 ||= recovered.length === 16;
       coverage.valid256 ||= recovered.length === 32;
     } else {
-      await assert.rejects(
-        () => combineMnemonics(mnemonics, ""),
-        Slip39Error,
-        description
-      );
-      coverage.invalid128 ||= description.includes("128 bits") || description.includes("insufficient length");
+      await assert.rejects(() => combineMnemonics(mnemonics, ""), Slip39Error, description);
+      coverage.invalid128 ||=
+        description.includes("128 bits") || description.includes("insufficient length");
       coverage.invalid256 ||= description.includes("256 bits");
     }
   }

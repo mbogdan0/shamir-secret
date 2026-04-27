@@ -1,58 +1,129 @@
 # SLIP-0039 Shamir Secret
 
-Offline, framework-free SLIP-0039 master-secret sharing app. The canonical app source lives in `src/`, and the build output is a generated, validated `dist/index.html` file with all CSS and JavaScript inline.
+Security-focused, offline-first SLIP-0039 master-secret sharing and recovery application.
 
-## Commands
+This project provides a browser UI for generating and recovering SLIP-0039 mnemonic shares while preserving a strict offline runtime model: production output is a single self-contained HTML file with inline CSS/JavaScript and no external runtime assets.
+
+## Project Purpose
+
+The goal is to provide a transparent, auditable, framework-free runtime implementation for SLIP-0039 workflows in a local browser context, with strong emphasis on deterministic behavior, explicit validation, and interoperability with upstream tooling.
+
+## Features
+
+- SLIP-0039 Final mnemonic generation for single-group `T-of-N` shares.
+- SLIP-0039-compatible recovery from valid mnemonic shares.
+- Optional text mode that wraps UTF-8 payloads into a reversible `SLIP39TXT` envelope before share generation.
+- Strict input validation for hex payloads, share counts, threshold values, and passphrase constraints.
+- Deterministic and interoperability-focused tests using vendored Trezor vectors.
+- Offline production artifact (`dist/index.html`) with restrictive CSP and no external runtime dependencies.
+
+## Explicit Non-Goals
+
+- BIP-0039 seed phrase generation or recovery.
+- Multi-group policy generation UX beyond current scope.
+- Browser storage persistence for secrets, passphrases, or generated shares.
+- Claims of formal third-party cryptographic certification or side-channel hardening.
+
+## Architecture Overview
+
+### 1. Crypto Core (`src/js/slip39`)
+
+- Implements GF(256) arithmetic, polynomial interpolation, checksum handling, share parsing/encoding, and SLIP-0039-compatible encryption/decryption flows.
+- Exposes a focused API through `src/js/slip39/index.js`.
+- Keeps compatibility behavior aligned with SLIP-0039 and upstream reference vectors.
+
+### 2. UI Layer (`src/js/ui` + `src/index.html` + `src/styles.css`)
+
+- Handles generation/recovery flows, form validation messaging, tab navigation, and explicit copy actions.
+- Uses safe DOM writes (`textContent` / controlled attributes) and avoids dynamic HTML rendering for user-provided content.
+
+### 3. Build Pipeline (`scripts/build.js`)
+
+- Uses Vite programmatic build orchestration to bundle runtime JavaScript and CSS.
+- Inlines generated assets into `src/index.html` placeholders.
+- Injects the strict production CSP into `dist/index.html` during build.
+- Enforces offline artifact invariants before writing `dist/index.html`:
+  - inline CSS present,
+  - inline script present and exposes `__SLIP39_APP__`,
+  - strict CSP meta present with offline-only directives,
+  - no external runtime scripts/styles/images/URLs,
+  - no unreplaced inline placeholders.
+
+## Development Workflow
+
+### Requirements
+
+- Node.js `>=22` (pinned via `.nvmrc`)
+- npm (bundled with Node, with `engine-strict=true` in `.npmrc`)
+
+### Install
 
 ```sh
-npm test
-npm run build
+npm ci
 ```
 
-Run `npm run build`, then open `dist/index.html`.
-
-## Scope
-
-- Standard SLIP-0039 mnemonic shares for raw master-secret bytes encoded as hex.
-- Optional text input mode that converts text to standard master-secret bytes with a reversible `SLIP39TXT` envelope.
-- Single-group `T-of-N` share generation.
-- Recovery accepts valid SLIP-0039 mnemonic shares, including official Trezor-compatible shares.
-- Master secrets must be at least 16 bytes and have a byte length that is a multiple of 2.
-- Hex input may contain whitespace for readability; whitespace is ignored before parsing.
-- The app never auto-pads odd hex or odd byte lengths. Padding would change the master secret.
-- Text input is encoded as UTF-8 without trimming or normalization, then wrapped with envelope metadata before SLIP-0039 generation.
-- Passphrases must contain only printable ASCII characters, as required by SLIP-0039.
-- Secrets, passphrases, and shares are not written to browser storage. The offline HTML also uses a restrictive Content Security Policy with no external network connections or runtime assets.
-
-## Recovery Contract
-
-Generated shares include a recovery note: SLIP-0039 Final, single group, raw hex master secret or `SLIP39TXT` text envelope, printable ASCII passphrase, `ext=1`, and iteration exponent `1`.
-
-Recover the shares with this app or any SLIP-0039-compatible tool using the same passphrase. The recovered result is the original master-secret bytes; in this app those bytes are displayed as lowercase hex. When the recovered bytes contain a supported `SLIP39TXT` envelope, this app also displays the decoded text.
-
-SLIP-0039 cannot verify whether a passphrase is the intended one. A wrong passphrase can still produce recovered bytes, but they will not be the original master secret.
-
-SLIP-0039 is not BIP-0039. These shares are Shamir backup mnemonics, not BIP-0039 wallet seed phrases.
-
-The `SLIP39TXT` v1 envelope is: ASCII magic `SLIP39TXT`, version byte `0x01`, a 4-byte big-endian UTF-8 payload length, 16 random bytes, the UTF-8 payload, and one random trailing padding byte only when needed to make the total master-secret byte length even. External SLIP-0039 tools remain compatible because they recover the envelope bytes as hex; this app can decode those bytes back to text.
-
-## Interop Check
-
-The test suite uses a vendored snapshot of the official Trezor SLIP-0039 vectors at `test/fixtures/slip39-vectors.json`, so `npm test` is reproducible without network access.
-
-To verify generated shares with the Trezor reference CLI:
+### Commands
 
 ```sh
-python3 -m pip install 'shamir-mnemonic[cli]'
-shamir recover
+npm run dev          # Vite dev server for src/ (live reload)
+npm run build        # Strict offline build -> dist/index.html
+npm run preview      # Preview dist/ via Vite preview server
+npm test             # Node test runner
+npm run lint         # ESLint + Stylelint + Prettier check (warnings fail)
+npm run format       # Full repository formatting pass
+npm run check        # lint + test + build
 ```
 
-Enter the generated shares and the same printable ASCII passphrase. The recovered master secret should match the original lowercase hex.
+### Local Quality Enforcement
+
+- `husky` + `lint-staged` run on `pre-commit`.
+- Staged files are formatted and linted before a commit is accepted.
+- CI and local commands both treat warnings as blocking in lint steps.
+
+## Security Model and Operational Guidance
+
+### Security Posture
+
+- Offline-first runtime artifact intended for local execution from file or trusted local hosting.
+- Restrictive CSP (`default-src 'none'`) is enforced in the production artifact (`dist/index.html`) with explicitly limited inline script/style allowances required by single-file delivery.
+- Development template (`src/index.html`) intentionally omits CSP so Vite runtime and HMR can load local dev assets.
+- No runtime network fetches and no browser storage persistence for sensitive data.
+
+### Important Limitations
+
+- Browser memory is not a hardened secret boundary; complete zeroization is not guaranteed.
+- Clipboard use transfers risk to the host OS and surrounding environment.
+- SLIP-0039 cannot verify intended passphrase correctness; incorrect passphrases can still produce bytes.
+- This repository is not a substitute for a formal independent cryptographic audit.
+
+For deeper implementation and risk notes, see `SECURITY_REVIEW.md`.
+
+## Release and Deployment Model
+
+GitHub Pages deployment is automated by tag pushes:
+
+- Workflow file: `.github/workflows/pages.yml`
+- Trigger: `push` tags matching `v*`
+- Quality gate before deployment:
+  1. `npm ci`
+  2. `npm run lint`
+  3. `npm test`
+  4. `npm run build`
+- Only successful quality builds are published to GitHub Pages.
+
+## Compatibility and Interoperability
+
+- Recovery is compatible with valid SLIP-0039 mnemonic shares, including upstream Trezor-compatible vectors included in this repository.
+- Generated shares are SLIP-0039 shares (not BIP-0039 phrases).
+- Text mode remains interoperable at byte level by embedding text in `SLIP39TXT` envelope bytes before SLIP-0039 generation.
 
 ## References
 
-- [SLIP-0039 final specification](https://raw.githubusercontent.com/satoshilabs/slips/master/slip-0039.md)
-- [Trezor reference implementation](https://github.com/trezor/python-shamir-mnemonic)
-- [SLIP-0039 wordlist](https://raw.githubusercontent.com/satoshilabs/slips/master/slip-0039/wordlist.txt)
+- [SLIP-0039 Final Specification](https://raw.githubusercontent.com/satoshilabs/slips/master/slip-0039.md)
+- [Trezor Python Reference Implementation](https://github.com/trezor/python-shamir-mnemonic)
+- [SLIP-0039 Wordlist](https://raw.githubusercontent.com/satoshilabs/slips/master/slip-0039/wordlist.txt)
 
-See `THIRD_PARTY_NOTICES.md` for upstream license notices.
+See also:
+
+- `SECURITY_REVIEW.md`
+- `THIRD_PARTY_NOTICES.md`

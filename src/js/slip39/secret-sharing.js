@@ -12,7 +12,10 @@ export async function createDigest(randomPart, sharedSecret) {
 export async function splitSecret(threshold, shareCount, sharedSecret) {
   validateShareParameters(threshold, shareCount);
   if (threshold === 1) {
-    return Array.from({ length: shareCount }, (_, index) => ({ x: index, data: new Uint8Array(sharedSecret) }));
+    return Array.from({ length: shareCount }, (_, index) => ({
+      x: index,
+      data: new Uint8Array(sharedSecret)
+    }));
   }
 
   const randomShareCount = threshold - 2;

@@ -51,17 +51,16 @@ export function interpolate(shares, x) {
 
   for (const share of shares) {
     const logBasisEval = modulo(
-      logProduct
-        - LOG_TABLE[share.x ^ x]
-        - shares.reduce((sum, other) => sum + LOG_TABLE[share.x ^ other.x], 0),
+      logProduct -
+        LOG_TABLE[share.x ^ x] -
+        shares.reduce((sum, other) => sum + LOG_TABLE[share.x ^ other.x], 0),
       255
     );
 
     for (let index = 0; index < length; index += 1) {
       const shareValue = share.data[index];
-      result[index] ^= shareValue === 0
-        ? 0
-        : EXP_TABLE[(LOG_TABLE[shareValue] + logBasisEval) % 255];
+      result[index] ^=
+        shareValue === 0 ? 0 : EXP_TABLE[(LOG_TABLE[shareValue] + logBasisEval) % 255];
     }
   }
 

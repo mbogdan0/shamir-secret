@@ -80,10 +80,14 @@ async function recoverEms(groups) {
   const params = firstGroup.first();
 
   if (groups.size < params.groupThreshold) {
-    throw new Slip39Error(`Insufficient number of mnemonic groups. Required groups: ${params.groupThreshold}.`);
+    throw new Slip39Error(
+      `Insufficient number of mnemonic groups. Required groups: ${params.groupThreshold}.`
+    );
   }
   if (groups.size !== params.groupThreshold) {
-    throw new Slip39Error(`Wrong number of mnemonic groups. Expected ${params.groupThreshold}, got ${groups.size}.`);
+    throw new Slip39Error(
+      `Wrong number of mnemonic groups. Expected ${params.groupThreshold}, got ${groups.size}.`
+    );
   }
 
   const groupShares = [];
@@ -109,7 +113,13 @@ async function recoverEms(groups) {
   };
 }
 
-export async function generateMnemonics(threshold, shareCount, masterSecret, passphrase = "", options = {}) {
+export async function generateMnemonics(
+  threshold,
+  shareCount,
+  masterSecret,
+  passphrase = "",
+  options = {}
+) {
   validateSingleGroupParameters(threshold, shareCount);
   validateMasterSecretBytes(masterSecret);
   const passphraseBytes = validatePassphrase(passphrase);
@@ -129,17 +139,19 @@ export async function generateMnemonics(threshold, shareCount, masterSecret, pas
   const groupShares = await splitSecret(1, 1, encryptedMasterSecret);
   const memberShares = await splitSecret(threshold, shareCount, groupShares[0].data);
 
-  return memberShares.map((share) => new Share(
-    identifier,
-    extendable,
-    iterationExponent,
-    0,
-    1,
-    1,
-    share.x,
-    threshold,
-    share.data
-  ).toMnemonic());
+  return memberShares.map((share) =>
+    new Share(
+      identifier,
+      extendable,
+      iterationExponent,
+      0,
+      1,
+      1,
+      share.x,
+      threshold,
+      share.data
+    ).toMnemonic()
+  );
 }
 
 export async function combineMnemonics(mnemonics, passphrase = "") {
@@ -264,20 +276,27 @@ export async function combineMnemonicsFlexible(mnemonics, passphrase = "") {
       return {
         groupIndex,
         memberThreshold,
-        shareCombinations: shares.length >= memberThreshold
-          ? combinations(shares, memberThreshold).map((candidate) => candidate.map((entry) => entry.mnemonic))
-          : []
+        shareCombinations:
+          shares.length >= memberThreshold
+            ? combinations(shares, memberThreshold).map((candidate) =>
+                candidate.map((entry) => entry.mnemonic)
+              )
+            : []
       };
     })
     .filter((group) => group.shareCombinations.length > 0);
 
   if (completeGroups.length < groupThreshold) {
-    throw new Slip39Error(`Insufficient number of mnemonic groups. Required groups: ${groupThreshold}.`);
+    throw new Slip39Error(
+      `Insufficient number of mnemonic groups. Required groups: ${groupThreshold}.`
+    );
   }
 
   let lastError = null;
   for (const groupSet of combinations(completeGroups, groupThreshold)) {
-    const memberCombinationSets = cartesianProduct(groupSet.map((group) => group.shareCombinations));
+    const memberCombinationSets = cartesianProduct(
+      groupSet.map((group) => group.shareCombinations)
+    );
     for (const memberCombinationSet of memberCombinationSets) {
       const candidateMnemonics = memberCombinationSet.flat();
       try {

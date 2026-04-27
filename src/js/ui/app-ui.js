@@ -15,11 +15,7 @@ import { hashForTabMode, tabModeFromHash, UI_TABS } from "./tabs.js";
 const COPY_FEEDBACK_MS = 1400;
 
 export function startUi(core) {
-  const {
-    combineMnemonicsFlexible,
-    generateMnemonics,
-    hasRequiredCrypto
-  } = core;
+  const { combineMnemonicsFlexible, generateMnemonics, hasRequiredCrypto } = core;
   const elements = getElements();
   const tabs = [elements.generateTab, elements.recoverTab];
   const copyFeedbackTimers = new WeakMap();
@@ -30,7 +26,9 @@ export function startUi(core) {
   }
 
   function selectedSecretMode() {
-    return elements.secretInputModes.find((input) => input.checked)?.value ?? SECRET_INPUT_MODES.HEX;
+    return (
+      elements.secretInputModes.find((input) => input.checked)?.value ?? SECRET_INPUT_MODES.HEX
+    );
   }
 
   function updateRecoveryNote(mode) {
@@ -124,11 +122,14 @@ export function startUi(core) {
     button.textContent = copiedLabel;
     button.classList.add("is-copied");
     clearTimeout(copyFeedbackTimers.get(button));
-    copyFeedbackTimers.set(button, setTimeout(() => {
-      button.textContent = originalLabel;
-      button.classList.remove("is-copied");
-      copyFeedbackTimers.delete(button);
-    }, COPY_FEEDBACK_MS));
+    copyFeedbackTimers.set(
+      button,
+      setTimeout(() => {
+        button.textContent = originalLabel;
+        button.classList.remove("is-copied");
+        copyFeedbackTimers.delete(button);
+      }, COPY_FEEDBACK_MS)
+    );
   }
 
   elements.generateTab.addEventListener("click", () => setTab(UI_TABS.GENERATE));
@@ -157,7 +158,7 @@ export function startUi(core) {
         threshold,
         shareCount,
         masterSecret,
-        elements.generatePassphrase.value,
+        elements.generatePassphrase.value
       );
       currentShares = shares;
       renderShares(elements, shares, threshold, shareCount, copyWithFeedback);
@@ -190,15 +191,30 @@ export function startUi(core) {
   });
 
   elements.copyAllShares.addEventListener("click", async () => {
-    await copyWithFeedback(elements.copyAllShares, currentShares.join("\n"), "Copied all", "Copied all shares.");
+    await copyWithFeedback(
+      elements.copyAllShares,
+      currentShares.join("\n"),
+      "Copied all",
+      "Copied all shares."
+    );
   });
 
   elements.copyRecovered.addEventListener("click", async () => {
-    await copyWithFeedback(elements.copyRecovered, elements.recoveredHex.value, "Copied", "Copied recovered hex.");
+    await copyWithFeedback(
+      elements.copyRecovered,
+      elements.recoveredHex.value,
+      "Copied",
+      "Copied recovered hex."
+    );
   });
 
   elements.copyRecoveredText.addEventListener("click", async () => {
-    await copyWithFeedback(elements.copyRecoveredText, elements.recoveredText.value, "Copied", "Copied recovered text.");
+    await copyWithFeedback(
+      elements.copyRecoveredText,
+      elements.recoveredText.value,
+      "Copied",
+      "Copied recovered text."
+    );
   });
 
   elements.clearGenerate.addEventListener("click", () => {
@@ -229,5 +245,4 @@ export function startUi(core) {
     elements.cryptoStatus.classList.add("is-error");
     setMessage("This browser cannot run the required Web Crypto operations.", "error");
   }
-
 }

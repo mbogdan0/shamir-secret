@@ -16,7 +16,8 @@ const MODE_CONFIG = Object.freeze({
     placeholder: "Enter text to protect",
     helpText: "Spacing and new lines are preserved.",
     modeHint: "Hex stores raw bytes. Text wraps UTF-8.",
-    recoveryNote: "Text encoded as a SLIP39TXT v1 envelope; external tools recover envelope bytes as hex"
+    recoveryNote:
+      "Text encoded as a SLIP39TXT v1 envelope; external tools recover envelope bytes as hex"
   }
 });
 
@@ -67,10 +68,18 @@ export function getSecretInputStatus(mode, value, core) {
     return { text: "0 bytes", tone: "", helpText: MODE_CONFIG[mode].helpText };
   }
   if (/[^0-9a-f]/i.test(hex)) {
-    return { text: "Only hex digits and whitespace", tone: "error", helpText: MODE_CONFIG[mode].helpText };
+    return {
+      text: "Only hex digits and whitespace",
+      tone: "error",
+      helpText: MODE_CONFIG[mode].helpText
+    };
   }
   if (hex.length % 2 !== 0) {
-    return { text: "Odd hex digit count; fix intentionally", tone: "error", helpText: MODE_CONFIG[mode].helpText };
+    return {
+      text: "Odd hex digit count; fix intentionally",
+      tone: "error",
+      helpText: MODE_CONFIG[mode].helpText
+    };
   }
 
   const byteLength = hex.length / 2;

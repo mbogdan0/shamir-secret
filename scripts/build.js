@@ -1,36 +1,58 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import * as esbuild from "esbuild";
+import { build as viteBuild } from "vite";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const templatePath = resolve(projectRoot, "src/index.html");
-const stylesPath = resolve(projectRoot, "src/styles.css");
-const appEntryPath = resolve(projectRoot, "src/js/app.js");
+const viteEntryPath = resolve(projectRoot, "scripts/vite-entry.js");
+const outputPath = resolve(projectRoot, "dist/index.html");
+const cspPlaceholderPattern = /^([ \t]*)<!--\s*__INLINE_CSP__\s*-->/m;
+const strictCspPolicy =
+  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'";
 
-const [template, styles, bundle] = await Promise.all([
-  readFile(templatePath, "utf8"),
-  readFile(stylesPath, "utf8"),
-  esbuild.build({
-    entryPoints: [appEntryPath],
-    bundle: true,
-    charset: "utf8",
-    format: "iife",
-    legalComments: "none",
-    minify: false,
-    platform: "browser",
-    sourcemap: false,
+const template = await readFile(templatePath, "utf8");
+const bundleOutput = await viteBuild({
+  configFile: false,
+  root: projectRoot,
+  publicDir: false,
+  logLevel: "silent",
+  build: {
+    write: false,
     target: "es2022",
-    write: false
-  })
-]);
+    minify: false,
+    cssMinify: false,
+    sourcemap: false,
+    cssCodeSplit: false,
+    lib: {
+      entry: viteEntryPath,
+      formats: ["iife"],
+      name: "SLIP39AppBundle",
+      fileName: () => "app.js"
+    }
+  }
+});
 
-const script = bundle.outputFiles[0].text
-  .replaceAll("</script", "<\\/script")
-  .trimEnd();
-const css = styles
-  .replaceAll("</style", "<\\/style")
-  .trimEnd();
+const outputs = (Array.isArray(bundleOutput) ? bundleOutput : [bundleOutput]).flatMap(
+  (item) => item.output ?? []
+);
+
+const scriptChunk = outputs.find((item) => item.type === "chunk" && item.isEntry);
+const styleAsset = outputs.find(
+  (item) =>
+    item.type === "asset" && typeof item.fileName === "string" && item.fileName.endsWith(".css")
+);
+
+if (!scriptChunk) {
+  throw new Error("Vite build output is missing the entry JavaScript chunk.");
+}
+
+if (!styleAsset) {
+  throw new Error("Vite build output is missing the CSS asset.");
+}
+
+const script = scriptChunk.code.replaceAll("</script", "<\\/script").trimEnd();
+const css = String(styleAsset.source).replaceAll("</style", "<\\/style").trimEnd();
 
 const styleTagPattern = /[ \t]*<link\b(?=[^>]*\bdata-inline-style\b)[^>]*>\s*/i;
 const scriptTagPattern = /[ \t]*<script\b(?=[^>]*\bdata-inline-script\b)[^>]*>\s*<\/script>\s*/i;
@@ -43,7 +65,16 @@ if (!scriptTagPattern.test(template)) {
   throw new Error("src/index.html must contain a data-inline-script app tag.");
 }
 
+if (!cspPlaceholderPattern.test(template)) {
+  throw new Error("src/index.html must contain the __INLINE_CSP__ placeholder comment.");
+}
+
 const html = template
+  .replace(
+    cspPlaceholderPattern,
+    (_, indent) =>
+      `${indent}<meta\n${indent}  http-equiv="Content-Security-Policy"\n${indent}  content="${strictCspPolicy}"\n${indent}/>`
+  )
   .replace(styleTagPattern, `    <style>\n${css}\n</style>\n`)
   .replace(scriptTagPattern, `    <script id="app-source">\n${script}\n</script>\n`);
 
@@ -62,6 +93,14 @@ if (!/<script\b[^>]*>[\s\S]*__SLIP39_APP__[\s\S]*<\/script>/i.test(html)) {
   throw new Error("dist/index.html must contain the inline app script.");
 }
 
+if (!/http-equiv=["']Content-Security-Policy["']/i.test(html)) {
+  throw new Error("dist/index.html must contain a Content-Security-Policy meta tag.");
+}
+
+if (!html.includes(strictCspPolicy)) {
+  throw new Error("dist/index.html must contain the strict offline CSP policy.");
+}
+
 for (const pattern of externalAssetPatterns) {
   if (pattern.test(html)) {
     throw new Error(`dist/index.html contains an external runtime asset: ${pattern}`);
@@ -72,7 +111,6 @@ if (/data-inline-(?:style|script)|__INLINE_/i.test(html)) {
   throw new Error("dist/index.html contains an unreplaced build placeholder.");
 }
 
-const outputPath = resolve(projectRoot, "dist/index.html");
 await mkdir(dirname(outputPath), { recursive: true });
 await writeFile(outputPath, html);
 

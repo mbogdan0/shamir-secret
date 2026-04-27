@@ -66,9 +66,10 @@ export class Share {
   }
 
   encodeIdExp() {
-    const value = (BigInt(this.identifier) << 5n)
-      | (BigInt(this.extendable ? 1 : 0) << 4n)
-      | BigInt(this.iterationExponent);
+    const value =
+      (BigInt(this.identifier) << 5n) |
+      (BigInt(this.extendable ? 1 : 0) << 4n) |
+      BigInt(this.iterationExponent);
     return intToIndices(value, ID_EXP_LENGTH_WORDS);
   }
 
@@ -117,13 +118,18 @@ export class Share {
     const iterationExponent = idExpInt & ((1 << ITERATION_EXP_LENGTH_BITS) - 1);
 
     if (!verifyChecksum(mnemonicData, customizationString(extendable))) {
-      const prefix = mnemonic.trim().split(/\s+/).slice(0, ID_EXP_LENGTH_WORDS + 2).join(" ");
+      const prefix = mnemonic
+        .trim()
+        .split(/\s+/)
+        .slice(0, ID_EXP_LENGTH_WORDS + 2)
+        .join(" ");
       throw new Slip39Error(`Invalid mnemonic checksum for "${prefix} ...".`);
     }
 
     const shareParamsData = mnemonicData.slice(ID_EXP_LENGTH_WORDS, ID_EXP_LENGTH_WORDS + 2);
     const shareParams = intToIndices(intFromIndices(shareParamsData), 5, 4);
-    const [groupIndex, encodedGroupThreshold, encodedGroupCount, index, encodedMemberThreshold] = shareParams;
+    const [groupIndex, encodedGroupThreshold, encodedGroupCount, index, encodedMemberThreshold] =
+      shareParams;
 
     if (encodedGroupCount < encodedGroupThreshold) {
       throw new Slip39Error("Group threshold cannot be greater than group count.");

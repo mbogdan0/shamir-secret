@@ -19,7 +19,7 @@ async function roundFunction(index, passphraseBytes, iterationExponent, salt, ri
   return pbkdf2Sha256(
     concatBytes(new Uint8Array([index]), passphraseBytes),
     concatBytes(salt, right),
-    (BASE_ITERATION_COUNT * (2 ** iterationExponent)) / ROUND_COUNT,
+    (BASE_ITERATION_COUNT * 2 ** iterationExponent) / ROUND_COUNT,
     right.length
   );
 }
@@ -32,7 +32,13 @@ function saltFor(identifier, extendable) {
   return concatBytes(asciiToBytes(CUSTOMIZATION_STRING_ORIG), idBytes);
 }
 
-export async function encrypt(masterSecret, passphraseBytes, iterationExponent, identifier, extendable) {
+export async function encrypt(
+  masterSecret,
+  passphraseBytes,
+  iterationExponent,
+  identifier,
+  extendable
+) {
   if (masterSecret.length % 2 !== 0) {
     throw new Slip39Error("The master secret byte length must be even.");
   }
@@ -49,7 +55,13 @@ export async function encrypt(masterSecret, passphraseBytes, iterationExponent, 
   return concatBytes(right, left);
 }
 
-export async function decrypt(encryptedMasterSecret, passphraseBytes, iterationExponent, identifier, extendable) {
+export async function decrypt(
+  encryptedMasterSecret,
+  passphraseBytes,
+  iterationExponent,
+  identifier,
+  extendable
+) {
   if (encryptedMasterSecret.length % 2 !== 0) {
     throw new Slip39Error("The encrypted master secret byte length must be even.");
   }
@@ -67,5 +79,7 @@ export async function decrypt(encryptedMasterSecret, passphraseBytes, iterationE
 }
 
 export function randomIdentifier() {
-  return Number(bytesToBigInt(randomBytes(bitsToBytes(ID_LENGTH_BITS)))) & ((1 << ID_LENGTH_BITS) - 1);
+  return (
+    Number(bytesToBigInt(randomBytes(bitsToBytes(ID_LENGTH_BITS)))) & ((1 << ID_LENGTH_BITS) - 1)
+  );
 }

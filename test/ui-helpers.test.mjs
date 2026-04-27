@@ -89,27 +89,33 @@ test("text input status shows UTF-8 to SLIP-0039 byte counts", () => {
     getSecretInputStatus(SECRET_INPUT_MODES.TEXT, "a", core).text,
     "1 UTF-8 byte -> 32 SLIP-0039 bytes"
   );
-  assert.deepEqual(
-    getSecretInputStatus(SECRET_INPUT_MODES.TEXT, "too large", core),
-    {
-      text: "The text is too large for the SLIP39TXT v1 envelope.",
-      tone: "error",
-      helpText: getSecretInputModeConfig(SECRET_INPUT_MODES.TEXT).helpText
-    }
-  );
+  assert.deepEqual(getSecretInputStatus(SECRET_INPUT_MODES.TEXT, "too large", core), {
+    text: "The text is too large for the SLIP39TXT v1 envelope.",
+    tone: "error",
+    helpText: getSecretInputModeConfig(SECRET_INPUT_MODES.TEXT).helpText
+  });
 });
 
 test("secret input parsing dispatches by mode", () => {
   const core = makeCore();
   assert.equal(parseSecretInput(SECRET_INPUT_MODES.HEX, "abcd", core), "hex:abcd");
   assert.equal(parseSecretInput(SECRET_INPUT_MODES.TEXT, "hello", core), "text:hello");
-  assert.throws(() => parseSecretInput("other", "hello", core), /Unsupported master secret input mode/);
+  assert.throws(
+    () => parseSecretInput("other", "hello", core),
+    /Unsupported master secret input mode/
+  );
 });
 
 test("parsePositiveInteger uses explicit labels", () => {
   assert.equal(parsePositiveInteger({ value: "3" }, "Threshold"), 3);
-  assert.throws(() => parsePositiveInteger({ value: "2.5" }, "Threshold"), /Threshold must be an integer/);
-  assert.throws(() => parsePositiveInteger({ value: "abc" }, "Total shares"), /Total shares must be an integer/);
+  assert.throws(
+    () => parsePositiveInteger({ value: "2.5" }, "Threshold"),
+    /Threshold must be an integer/
+  );
+  assert.throws(
+    () => parsePositiveInteger({ value: "abc" }, "Total shares"),
+    /Total shares must be an integer/
+  );
 });
 
 test("recovery output distinguishes text envelopes from raw bytes", () => {
@@ -120,7 +126,8 @@ test("recovery output distinguishes text envelopes from raw bytes", () => {
     hasText: false,
     hexHeading: "Recovered master secret hex",
     hexHelpText: "Recovered bytes as lowercase hex.",
-    message: "Master secret bytes recovered. SLIP-0039 cannot verify whether the passphrase was the intended one.",
+    message:
+      "Master secret bytes recovered. SLIP-0039 cannot verify whether the passphrase was the intended one.",
     tone: "warning"
   });
   assert.deepEqual(getRecoveryOutput(new Uint8Array([0x54, 0x01]), core), {

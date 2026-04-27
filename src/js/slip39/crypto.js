@@ -9,7 +9,9 @@ export function requireWebCrypto() {
 }
 
 export function hasRequiredCrypto() {
-  return Boolean(globalThis.crypto?.subtle && typeof globalThis.crypto.getRandomValues === "function");
+  return Boolean(
+    globalThis.crypto?.subtle && typeof globalThis.crypto.getRandomValues === "function"
+  );
 }
 
 export function randomBytes(length) {
@@ -33,13 +35,9 @@ export async function hmacSha256(keyBytes, messageBytes) {
 }
 
 export async function pbkdf2Sha256(passwordBytes, saltBytes, iterations, byteLength) {
-  const key = await requireWebCrypto().subtle.importKey(
-    "raw",
-    passwordBytes,
-    "PBKDF2",
-    false,
-    ["deriveBits"]
-  );
+  const key = await requireWebCrypto().subtle.importKey("raw", passwordBytes, "PBKDF2", false, [
+    "deriveBits"
+  ]);
   const bits = await requireWebCrypto().subtle.deriveBits(
     {
       name: "PBKDF2",
