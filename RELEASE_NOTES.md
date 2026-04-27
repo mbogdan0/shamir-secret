@@ -1,5 +1,19 @@
 # Release Notes
 
+## v0.3.0 (2026-04-27)
+
+### Artifact Integrity
+
+- Artifact: `dist/index.html`
+- SHA-256: `8fb4bad1b09b4e81155f89206d693b7083cde8d7dc0b39b2d0b36f121df217c1`
+- Verification command: `shasum -a 256 dist/index.html`
+
+### Notes
+
+- Migrated runtime source, build scripts, and tests from JavaScript to TypeScript.
+- Updated tooling commands and repository checks for strict TypeScript validation.
+- Rebuilt the offline browser artifact from the TypeScript entrypoint.
+
 ## v0.2.0 (2026-04-27)
 
 ### Artifact Integrity

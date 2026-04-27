@@ -1,13 +1,15 @@
 import js from "@eslint/js";
 import globals from "globals";
+import tseslint from "typescript-eslint";
 
 export default [
   {
     ignores: ["dist/**", "node_modules/**", ".cache/**", ".idea/**", ".husky/_/**", "coverage/**"]
   },
   js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
-    files: ["src/**/*.js"],
+    files: ["src/**/*.ts"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
@@ -26,7 +28,7 @@ export default [
     }
   },
   {
-    files: ["scripts/**/*.js"],
+    files: ["scripts/**/*.ts"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
@@ -40,7 +42,7 @@ export default [
     }
   },
   {
-    files: ["test/**/*.mjs"],
+    files: ["test/**/*.ts"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",

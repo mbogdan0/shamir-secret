@@ -65,7 +65,7 @@ Critical operational caveats:
 
 ## 🧮 Technical Foundation
 
-### Cryptographic and protocol core (`src/js/slip39`)
+### Cryptographic and protocol core (`src/ts/slip39`)
 
 - GF(256) arithmetic and interpolation over the AES polynomial.
 - RS1024 checksum encode/verify flow.
@@ -104,7 +104,7 @@ Interoperability implications:
 
 ## 🏗️ Build and Artifact Integrity
 
-Build pipeline (`scripts/build.js`) uses Vite programmatic output and enforces production invariants:
+Build pipeline (`scripts/build.ts`) uses Vite programmatic output and enforces production invariants:
 
 - CSS and JS are inlined into a single HTML file.
 - CSP placeholder is replaced with strict offline policy.
@@ -113,7 +113,7 @@ Build pipeline (`scripts/build.js`) uses Vite programmatic output and enforces p
   - `http://` or `https://` runtime references,
   - unreplaced inline placeholders.
 
-The corresponding test suite (`test/build.test.mjs`) verifies these invariants continuously.
+The corresponding test suite (`test/build.test.ts`) verifies these invariants continuously.
 
 ## 🧪 Verification and Quality Gates
 
@@ -132,7 +132,7 @@ What validation covers:
 - Protocol behavior and error semantics.
 - Official/vector-based interoperability checks.
 - Offline artifact invariants and CSP presence.
-- TypeScript `checkJs` contracts for plain JavaScript source, scripts, and tests.
+- Strict TypeScript contracts for runtime source, scripts, and tests.
 - Zero runtime npm dependency policy for the offline app.
 - Runtime source policy checks for unsafe browser APIs and non-relative runtime imports.
 - Style and formatting consistency with blocking lint policy.
@@ -163,7 +163,7 @@ npm run build        # Build strict offline artifact -> dist/index.html
 npm run preview      # Preview dist/ locally
 npm test             # Node test runner
 npm run lint         # ESLint + Stylelint + Prettier check
-npm run typecheck    # TypeScript checkJs validation for plain JavaScript
+npm run typecheck    # Strict TypeScript validation
 npm run verify:build # Verify tracked dist/index.html matches source output
 npm run format       # Full repository formatting
 npm run check        # lint + typecheck + build-artifact verification + tests + build
