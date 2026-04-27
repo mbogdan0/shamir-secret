@@ -1,8 +1,9 @@
+import { hex as scureHex } from "@scure/base";
 import { Slip39Error } from "./errors.js";
 import { validateMasterSecretBytes } from "./validation.js";
 
 export function bytesToHex(bytes) {
-  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return scureHex.encode(bytes);
 }
 
 export function compactHex(hex) {
@@ -27,11 +28,7 @@ export function normalizeHex(hex) {
 
 export function hexToBytes(hex) {
   const normalized = normalizeHex(hex);
-  const output = new Uint8Array(normalized.length / 2);
-  for (let index = 0; index < output.length; index += 1) {
-    output[index] = Number.parseInt(normalized.slice(index * 2, index * 2 + 2), 16);
-  }
-  return output;
+  return scureHex.decode(normalized);
 }
 
 export function parseMasterSecretHex(hex) {

@@ -12,5 +12,8 @@
   },
   "devDependencies": {
     "esbuild": "^0.28.0"
+  },
+  "dependencies": {
+    "@scure/base": "2.2.0"
   }
 }

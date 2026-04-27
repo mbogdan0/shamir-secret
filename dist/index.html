@@ -998,6 +998,195 @@ button:disabled {
     return result;
   }
 
+  // node_modules/@scure/base/index.js
+  function isBytes(a) {
+    return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array" && "BYTES_PER_ELEMENT" in a && a.BYTES_PER_ELEMENT === 1;
+  }
+  function abytes(b) {
+    if (!isBytes(b))
+      throw new TypeError("Uint8Array expected");
+  }
+  function isArrayOf(isString, arr) {
+    if (!Array.isArray(arr))
+      return false;
+    if (arr.length === 0)
+      return true;
+    if (isString) {
+      return arr.every((item) => typeof item === "string");
+    } else {
+      return arr.every((item) => Number.isSafeInteger(item));
+    }
+  }
+  function afn(input) {
+    if (typeof input !== "function")
+      throw new TypeError("function expected");
+    return true;
+  }
+  function astr(label, input) {
+    if (typeof input !== "string")
+      throw new TypeError(`${label}: string expected`);
+    return true;
+  }
+  function anumber(n) {
+    if (typeof n !== "number")
+      throw new TypeError(`number expected, got ${typeof n}`);
+    if (!Number.isSafeInteger(n))
+      throw new RangeError(`invalid integer: ${n}`);
+  }
+  function aArr(input) {
+    if (!Array.isArray(input))
+      throw new TypeError("array expected");
+  }
+  function astrArr(label, input) {
+    if (!isArrayOf(true, input))
+      throw new TypeError(`${label}: array of strings expected`);
+  }
+  function anumArr(label, input) {
+    if (!isArrayOf(false, input))
+      throw new TypeError(`${label}: array of numbers expected`);
+  }
+  // @__NO_SIDE_EFFECTS__
+  function chain(...args) {
+    const id = (a) => a;
+    const wrap = (a, b) => (c) => a(b(c));
+    const encode = args.map((x) => x.encode).reduceRight(wrap, id);
+    const decode = args.map((x) => x.decode).reduce(wrap, id);
+    return { encode, decode };
+  }
+  // @__NO_SIDE_EFFECTS__
+  function alphabet(letters) {
+    const lettersA = typeof letters === "string" ? letters.split("") : letters;
+    const len = lettersA.length;
+    astrArr("alphabet", lettersA);
+    const indexes = new Map(lettersA.map((l, i) => [l, i]));
+    return {
+      encode: (digits) => {
+        aArr(digits);
+        return digits.map((i) => {
+          if (!Number.isSafeInteger(i) || i < 0 || i >= len)
+            throw new Error(`alphabet.encode: digit index outside alphabet "${i}". Allowed: ${letters}`);
+          return lettersA[i];
+        });
+      },
+      decode: (input) => {
+        aArr(input);
+        return input.map((letter) => {
+          astr("alphabet.decode", letter);
+          const i = indexes.get(letter);
+          if (i === void 0)
+            throw new Error(`Unknown letter: "${letter}". Allowed: ${letters}`);
+          return i;
+        });
+      }
+    };
+  }
+  // @__NO_SIDE_EFFECTS__
+  function join(separator = "") {
+    astr("join", separator);
+    return {
+      encode: (from) => {
+        astrArr("join.decode", from);
+        return from.join(separator);
+      },
+      decode: (to) => {
+        astr("join.decode", to);
+        return to.split(separator);
+      }
+    };
+  }
+  // @__NO_SIDE_EFFECTS__
+  function normalize(fn) {
+    afn(fn);
+    return { encode: (from) => from, decode: (to) => fn(to) };
+  }
+  var gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
+  var radix2carry = /* @__NO_SIDE_EFFECTS__ */ (from, to) => from + (to - gcd(from, to));
+  var powers = /* @__PURE__ */ (() => {
+    let res = [];
+    for (let i = 0; i < 40; i++)
+      res.push(2 ** i);
+    return res;
+  })();
+  function convertRadix2(data, from, to, padding) {
+    aArr(data);
+    if (from <= 0 || from > 32)
+      throw new RangeError(`convertRadix2: wrong from=${from}`);
+    if (to <= 0 || to > 32)
+      throw new RangeError(`convertRadix2: wrong to=${to}`);
+    if (/* @__PURE__ */ radix2carry(from, to) > 32) {
+      throw new Error(`convertRadix2: carry overflow from=${from} to=${to} carryBits=${/* @__PURE__ */ radix2carry(from, to)}`);
+    }
+    let carry = 0;
+    let pos = 0;
+    const max = powers[from];
+    const mask = powers[to] - 1;
+    const res = [];
+    for (const n of data) {
+      anumber(n);
+      if (n >= max)
+        throw new Error(`convertRadix2: invalid data word=${n} from=${from}`);
+      carry = carry << from | n;
+      if (pos + from > 32)
+        throw new Error(`convertRadix2: carry overflow pos=${pos} from=${from}`);
+      pos += from;
+      for (; pos >= to; pos -= to)
+        res.push((carry >> pos - to & mask) >>> 0);
+      const pow = powers[pos];
+      if (pow === void 0)
+        throw new Error("invalid carry");
+      carry &= pow - 1;
+    }
+    carry = carry << to - pos & mask;
+    if (!padding && pos >= from)
+      throw new Error("Excess padding");
+    if (!padding && carry > 0)
+      throw new Error(`Non-zero padding: ${carry}`);
+    if (padding && pos > 0)
+      res.push(carry >>> 0);
+    return res;
+  }
+  // @__NO_SIDE_EFFECTS__
+  function radix2(bits, revPadding = false) {
+    anumber(bits);
+    if (bits <= 0 || bits > 32)
+      throw new RangeError("radix2: bits should be in (0..32]");
+    if (/* @__PURE__ */ radix2carry(8, bits) > 32 || /* @__PURE__ */ radix2carry(bits, 8) > 32)
+      throw new RangeError("radix2: carry overflow");
+    return {
+      encode: (bytes) => {
+        if (!isBytes(bytes))
+          throw new TypeError("radix2.encode input should be Uint8Array");
+        return convertRadix2(Array.from(bytes), 8, bits, !revPadding);
+      },
+      decode: (digits) => {
+        anumArr("radix2.decode", digits);
+        return Uint8Array.from(convertRadix2(digits, bits, 8, revPadding));
+      }
+    };
+  }
+  var hasHexBuiltin = /* @__PURE__ */ (() => (
+    // Require both directions before enabling the native hex path so encode/decode stay symmetric.
+    typeof Uint8Array.from([]).toHex === "function" && typeof Uint8Array.fromHex === "function"
+  ))();
+  var hexBuiltin = {
+    // Keep local type guards so the native path preserves library-level input errors.
+    // Native toHex emits lowercase hex, matching the fallback alphabet and Node's hex strings.
+    encode(data) {
+      abytes(data);
+      return data.toHex();
+    },
+    // Native fromHex accepts either hex case and rejects odd-length / non-hex syntax.
+    decode(s) {
+      astr("hex", s);
+      return Uint8Array.fromHex(s);
+    }
+  };
+  var hex = /* @__PURE__ */ Object.freeze(hasHexBuiltin ? hexBuiltin : /* @__PURE__ */ chain(/* @__PURE__ */ radix2(4), /* @__PURE__ */ alphabet("0123456789abcdef"), /* @__PURE__ */ join(""), /* @__PURE__ */ normalize((s) => {
+    if (typeof s !== "string" || s.length % 2 !== 0)
+      throw new TypeError(`hex.decode: expected string, got ${typeof s} with length ${s.length}`);
+    return s.toLowerCase();
+  })));
+
   // src/js/slip39/validation.js
   function validatePassphrase(passphrase) {
     for (let index = 0; index < passphrase.length; index += 1) {
@@ -1054,13 +1243,13 @@ button:disabled {
 
   // src/js/slip39/hex.js
   function bytesToHex(bytes) {
-    return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    return hex.encode(bytes);
   }
-  function compactHex(hex) {
-    return hex.replace(/\s+/g, "").toLowerCase();
+  function compactHex(hex2) {
+    return hex2.replace(/\s+/g, "").toLowerCase();
   }
-  function normalizeHex(hex) {
-    const normalized = compactHex(hex);
+  function normalizeHex(hex2) {
+    const normalized = compactHex(hex2);
     if (normalized.length === 0) {
       throw new Slip39Error("The master secret hex is empty.");
     }
@@ -1074,16 +1263,12 @@ button:disabled {
     }
     return normalized;
   }
-  function hexToBytes(hex) {
-    const normalized = normalizeHex(hex);
-    const output = new Uint8Array(normalized.length / 2);
-    for (let index = 0; index < output.length; index += 1) {
-      output[index] = Number.parseInt(normalized.slice(index * 2, index * 2 + 2), 16);
-    }
-    return output;
+  function hexToBytes(hex2) {
+    const normalized = normalizeHex(hex2);
+    return hex.decode(normalized);
   }
-  function parseMasterSecretHex(hex) {
-    const bytes = hexToBytes(hex);
+  function parseMasterSecretHex(hex2) {
+    const bytes = hexToBytes(hex2);
     validateMasterSecretBytes(bytes);
     return bytes;
   }
@@ -1717,10 +1902,10 @@ button:disabled {
   // src/js/ui/recovery-output.js
   function getRecoveryOutput(recovered, core) {
     const text = core.decodeTextMasterSecret(recovered);
-    const hex = core.bytesToHex(recovered);
+    const hex2 = core.bytesToHex(recovered);
     if (text === null) {
       return {
-        hex,
+        hex: hex2,
         text: "",
         hasText: false,
         hexHeading: "Recovered master secret hex",
@@ -1730,7 +1915,7 @@ button:disabled {
       };
     }
     return {
-      hex,
+      hex: hex2,
       text,
       hasText: true,
       hexHeading: "Recovered envelope hex",
@@ -1815,17 +2000,17 @@ button:disabled {
         };
       }
     }
-    const hex = core.compactHex(value);
-    if (hex.length === 0) {
+    const hex2 = core.compactHex(value);
+    if (hex2.length === 0) {
       return { text: "0 bytes", tone: "", helpText: MODE_CONFIG[mode].helpText };
     }
-    if (/[^0-9a-f]/i.test(hex)) {
+    if (/[^0-9a-f]/i.test(hex2)) {
       return { text: "Only hex digits and whitespace", tone: "error", helpText: MODE_CONFIG[mode].helpText };
     }
-    if (hex.length % 2 !== 0) {
+    if (hex2.length % 2 !== 0) {
       return { text: "Odd hex digit count; fix intentionally", tone: "error", helpText: MODE_CONFIG[mode].helpText };
     }
-    const byteLength = hex.length / 2;
+    const byteLength = hex2.length / 2;
     if (byteLength < core.bitsToBytes(core.MIN_STRENGTH_BITS)) {
       return {
         text: `${formatByteCount(byteLength)}; minimum is 16 bytes`,
@@ -1841,7 +2026,7 @@ button:disabled {
       };
     }
     return {
-      text: `${byteLength} bytes; normalized ${hex.length} hex digits`,
+      text: `${byteLength} bytes; normalized ${hex2.length} hex digits`,
       tone: "",
       helpText: MODE_CONFIG[mode].helpText
     };

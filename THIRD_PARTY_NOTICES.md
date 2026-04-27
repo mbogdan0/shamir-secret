@@ -3,6 +3,13 @@
 This project implements SLIP-0039 using the public SatoshiLabs specification, wordlist, and Trezor reference vectors. The vendored test vectors in `test/fixtures/slip39-vectors.json` and portions of the algorithm structure and constants are adapted from `trezor/python-shamir-mnemonic`, which is distributed under the MIT License.
 
 The build pipeline uses `esbuild`, which is distributed under the MIT License. It is a development dependency and is not bundled into the generated offline HTML runtime.
+The runtime hex encoder and decoder use `@scure/base`, which is distributed under the MIT License and bundled into the generated offline HTML runtime.
+
+`@scure/base` copyright:
+
+```text
+Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+```
 
 ```text
 Copyright (c) 2018 Andrew R. Kozlik

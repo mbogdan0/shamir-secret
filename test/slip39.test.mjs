@@ -227,6 +227,34 @@ test("hex helpers and master secret parsing validate pure byte input", async () 
   assert.throws(() => parseMasterSecretHex("00".repeat(17)), /multiple of 2/);
 });
 
+test("hex parsing preserves exact validation error messages", async () => {
+  const { parseMasterSecretHex } = await appPromise;
+  const cases = [
+    ["", "The master secret hex is empty."],
+    ["zz", "The master secret hex can contain only hex digits and whitespace."],
+    ["00_01", "The master secret hex can contain only hex digits and whitespace."],
+    [
+      "0",
+      "The master secret hex has an odd number of digits. Add or remove one hex digit intentionally; this app will not auto-pad."
+    ],
+    ["00".repeat(15), "The master secret must be at least 16 bytes."],
+    [
+      "00".repeat(17),
+      "The master secret byte length must be a multiple of 2. Add or remove a full byte intentionally; this app will not auto-pad."
+    ]
+  ];
+
+  for (const [input, expectedMessage] of cases) {
+    assert.throws(
+      () => parseMasterSecretHex(input),
+      (error) => {
+        assert.equal(error.message, expectedMessage);
+        return true;
+      }
+    );
+  }
+});
+
 test("text master secret envelopes round-trip user text", async () => {
   const {
     decodeTextMasterSecret,
