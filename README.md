@@ -1,5 +1,7 @@
 # SLIP-0039 Shamir Secret
 
+![Test coverage: 98.16%](https://img.shields.io/badge/test%20coverage-98.16%25-brightgreen)
+
 Security-focused, offline-first SLIP-0039 share generation and recovery for browser environments.
 
 This project intentionally prioritizes security posture, implementation transparency, and protocol correctness over feature breadth.
@@ -121,6 +123,7 @@ Core checks:
 
 ```bash
 npm run check
+npm run test:coverage
 npm run audit
 npm run audit:prod
 npm run audit:signatures
@@ -132,6 +135,7 @@ What validation covers:
 - Protocol behavior and error semantics.
 - Official/vector-based interoperability checks.
 - Offline artifact invariants and CSP presence.
+- Native Node.js coverage thresholds for runtime source and build scripts.
 - Strict TypeScript contracts for runtime source, scripts, and tests.
 - Zero runtime npm dependency policy for the offline app.
 - Runtime source policy checks for unsafe browser APIs and non-relative runtime imports.
@@ -162,6 +166,7 @@ npm run dev          # Vite dev server for src/
 npm run build        # Build strict offline artifact -> dist/index.html
 npm run preview      # Preview dist/ locally
 npm test             # Node test runner
+npm run test:coverage # Node test runner with coverage thresholds
 npm run lint         # ESLint + Stylelint + Prettier check
 npm run typecheck    # Strict TypeScript validation
 npm run verify:build # Verify tracked dist/index.html matches source output

@@ -5,11 +5,38 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { renderInlineHtml, runBuildCli, strictCspPolicy, verifyHtml } from "../scripts/build.ts";
 
 const execFileAsync = promisify(execFile);
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const strictCspPolicy =
-  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'";
+
+const VALID_TEMPLATE = `
+<!doctype html>
+<html>
+  <head>
+    <!-- __INLINE_CSP__ -->
+    <link rel="stylesheet" href="./styles.css" data-inline-style />
+  </head>
+  <body>
+    <script data-inline-script></script>
+  </body>
+</html>`;
+const VALID_OUTPUTS = [
+  {
+    type: "chunk",
+    isEntry: true,
+    code: "globalThis.__SLIP39_APP__ = { marker: '</script>' };"
+  },
+  {
+    type: "asset",
+    fileName: "style.css",
+    source: "body::before { content: '</style>'; }"
+  }
+] as unknown as Parameters<typeof renderInlineHtml>[1];
+
+function validBuiltHtml(): string {
+  return renderInlineHtml(VALID_TEMPLATE, [...VALID_OUTPUTS]);
+}
 
 test("source template stays dev-friendly and keeps build CSP placeholder", async () => {
   const template = await readFile(resolve(projectRoot, "src/index.html"), "utf8");
@@ -44,4 +71,83 @@ test("build creates a single offline HTML file", async () => {
   assert.doesNotMatch(html, /\b(?:localStorage|sessionStorage|indexedDB)\b|document\.cookie/);
   assert.doesNotMatch(html, /autocomplete=["'](?:current-password|new-password)["']/i);
   assert.equal(new URL(`file://${resolve(projectRoot, "dist/index.html")}`).protocol, "file:");
+});
+
+test("build check mode verifies the committed artifact", async () => {
+  await runBuildCli(["node", "scripts/build.ts", "--check"]);
+});
+
+test("build write mode writes the offline artifact through the CLI helper", async () => {
+  await runBuildCli(["node", "scripts/build.ts"]);
+  const html = await readFile(resolve(projectRoot, "dist/index.html"), "utf8");
+
+  assert.match(html, /<script\b[^>]*id=["']app-source["'][^>]*>/);
+});
+
+test("inline HTML rendering escapes closing inline tags", () => {
+  const html = validBuiltHtml();
+
+  assert.match(html, /<style>[\s\S]*<\\\/style>[\s\S]*<\/style>/);
+  assert.match(html, /<script id="app-source">[\s\S]*<\\\/script>[\s\S]*<\/script>/);
+  assert.match(html, new RegExp(strictCspPolicy.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
+test("inline HTML rendering requires build outputs and source placeholders", () => {
+  assert.throws(
+    () =>
+      renderInlineHtml(
+        VALID_TEMPLATE,
+        VALID_OUTPUTS.filter((item) => item.type !== "chunk")
+      ),
+    /missing the entry JavaScript chunk/
+  );
+  assert.throws(
+    () =>
+      renderInlineHtml(
+        VALID_TEMPLATE,
+        VALID_OUTPUTS.filter((item) => item.type !== "asset")
+      ),
+    /missing the CSS asset/
+  );
+  assert.throws(
+    () => renderInlineHtml(VALID_TEMPLATE.replace("data-inline-style", ""), [...VALID_OUTPUTS]),
+    /data-inline-style/
+  );
+  assert.throws(
+    () => renderInlineHtml(VALID_TEMPLATE.replace("data-inline-script", ""), [...VALID_OUTPUTS]),
+    /data-inline-script/
+  );
+  assert.throws(
+    () =>
+      renderInlineHtml(VALID_TEMPLATE.replace("<!-- __INLINE_CSP__ -->", ""), [...VALID_OUTPUTS]),
+    /__INLINE_CSP__/
+  );
+});
+
+test("offline HTML verification rejects missing or external runtime content", () => {
+  const html = validBuiltHtml();
+  const cases: Array<[string, RegExp]> = [
+    [html.replace(/<style>[\s\S]*?<\/style>/, ""), /inline CSS/],
+    [html.replace(/<script id="app-source">[\s\S]*?<\/script>/, ""), /inline app script/],
+    [
+      html.replace(/http-equiv="Content-Security-Policy"/, 'name="not-csp"'),
+      /Content-Security-Policy/
+    ],
+    [html.replace(strictCspPolicy, "default-src 'self'"), /strict offline CSP/],
+    [html.replace("</head>", '<script src="app.js"></script></head>'), /external runtime asset/],
+    [
+      html.replace("</head>", '<link rel="stylesheet" href="style.css"></head>'),
+      /external runtime asset/
+    ],
+    [html.replace("</body>", '<img src="logo.png"></body>'), /external runtime asset/],
+    [
+      html.replace("</body>", '<a href="https://example.invalid">x</a></body>'),
+      /external runtime asset/
+    ],
+    [html.replace("</body>", "<!-- __INLINE_CSP__ --></body>"), /unreplaced build placeholder/]
+  ];
+
+  for (const [invalidHtml, expectedMessage] of cases) {
+    assert.throws(() => verifyHtml(invalidHtml), expectedMessage);
+  }
 });

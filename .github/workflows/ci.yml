@@ -38,8 +38,8 @@ jobs:
       - name: Verify committed build artifact
         run: npm run verify:build
 
-      - name: Test
-        run: npm test
+      - name: Test with coverage
+        run: npm run test:coverage
 
       - name: Verify zero runtime dependencies
         run: npm run verify:runtime-deps

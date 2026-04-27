@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build as viteBuild, type Rollup } from "vite";
 
 type BuildChunk = Rollup.OutputChunk;
@@ -11,12 +11,11 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const templatePath = resolve(projectRoot, "src/index.html");
 const viteEntryPath = resolve(projectRoot, "scripts/vite-entry.ts");
 const outputPath = resolve(projectRoot, "dist/index.html");
-const checkMode = process.argv.includes("--check");
 const cspPlaceholderPattern = /^([ \t]*)<!--\s*__INLINE_CSP__\s*-->/m;
-const strictCspPolicy =
+export const strictCspPolicy =
   "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'";
 
-async function buildHtml(): Promise<string> {
+export async function buildHtml(): Promise<string> {
   const template = await readFile(templatePath, "utf8");
   const bundleOutput = await viteBuild({
     configFile: false,
@@ -43,7 +42,10 @@ async function buildHtml(): Promise<string> {
     output?: BuildOutputItem[];
   }>;
   const outputs: BuildOutputItem[] = buildOutputs.flatMap((item) => item.output ?? []);
+  return renderInlineHtml(template, outputs);
+}
 
+export function renderInlineHtml(template: string, outputs: BuildOutputItem[]): string {
   const scriptChunk = outputs.find(
     (item): item is BuildChunk => item.type === "chunk" && item.isEntry
   );
@@ -91,7 +93,7 @@ async function buildHtml(): Promise<string> {
   return html;
 }
 
-function verifyHtml(html: string): void {
+export function verifyHtml(html: string): void {
   const externalAssetPatterns = [
     /<script\b[^>]*\bsrc\s*=/i,
     /<link\b[^>]*\brel=["']?stylesheet["']?[^>]*>/i,
@@ -126,16 +128,22 @@ function verifyHtml(html: string): void {
   }
 }
 
-const html = await buildHtml();
+export async function runBuildCli(argv: readonly string[] = process.argv): Promise<void> {
+  const html = await buildHtml();
 
-if (checkMode) {
-  const existingHtml = await readFile(outputPath, "utf8");
-  if (existingHtml !== html) {
-    throw new Error("dist/index.html is out of date. Run `npm run build` and commit the result.");
+  if (argv.includes("--check")) {
+    const existingHtml = await readFile(outputPath, "utf8");
+    if (existingHtml !== html) {
+      throw new Error("dist/index.html is out of date. Run `npm run build` and commit the result.");
+    }
+    console.log(`Verified ${outputPath}`);
+  } else {
+    await mkdir(dirname(outputPath), { recursive: true });
+    await writeFile(outputPath, html);
+    console.log(`Built ${outputPath}`);
   }
-  console.log(`Verified ${outputPath}`);
-} else {
-  await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, html);
-  console.log(`Built ${outputPath}`);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await runBuildCli();
 }

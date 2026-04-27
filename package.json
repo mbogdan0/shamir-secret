@@ -8,6 +8,7 @@
     "build": "node --experimental-strip-types scripts/build.ts",
     "preview": "vite preview dist",
     "test": "node --experimental-strip-types --test \"test/*.test.ts\"",
+    "test:coverage": "node --experimental-strip-types --experimental-test-coverage --test-coverage-lines=98 --test-coverage-branches=94 --test-coverage-functions=100 --test-coverage-include=\"src/ts/**/*.ts\" --test-coverage-include=\"scripts/*.ts\" --test-coverage-exclude=\"test/**\" --test \"test/*.test.ts\"",
     "lint": "npm run lint:ts && npm run lint:css && npm run format:check",
     "lint:ts": "eslint . --max-warnings=0",
     "lint:css": "stylelint \"src/**/*.css\" --max-warnings=0",
@@ -21,7 +22,7 @@
     "verify:source-policy": "node --experimental-strip-types scripts/verify-source-policy.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run lint && npm run typecheck && npm run verify:build && npm test && npm run verify:runtime-deps && npm run verify:source-policy && npm run build",
+    "check": "npm run lint && npm run typecheck && npm run verify:build && npm run test:coverage && npm run verify:runtime-deps && npm run verify:source-policy && npm run build",
     "prepare": "husky"
   },
   "engines": {
