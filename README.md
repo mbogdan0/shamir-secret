@@ -1,6 +1,13 @@
 # SLIP-0039 Shamir Secret
 
 ![Test coverage: 98.16%](https://img.shields.io/badge/test%20coverage-98.16%25-brightgreen)
+[![CI](https://github.com/mbogdan0/shamir-secret/actions/workflows/ci.yml/badge.svg)](https://github.com/mbogdan0/shamir-secret/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/mbogdan0/shamir-secret/actions/workflows/codeql.yml/badge.svg)](https://github.com/mbogdan0/shamir-secret/actions/workflows/codeql.yml)
+[![Release Artifacts](https://github.com/mbogdan0/shamir-secret/actions/workflows/release.yml/badge.svg)](https://github.com/mbogdan0/shamir-secret/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/mbogdan0/shamir-secret)](https://github.com/mbogdan0/shamir-secret/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Node.js >=22](https://img.shields.io/badge/node-%3E%3D22-339933)](./package.json)
+[![Runtime dependencies: 0](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](./package.json)
 
 Security-focused, offline-first SLIP-0039 share generation and recovery for browser environments.
 
