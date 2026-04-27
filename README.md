@@ -4,6 +4,8 @@ Security-focused, offline-first SLIP-0039 share generation and recovery for brow
 
 This project intentionally prioritizes security posture, implementation transparency, and protocol correctness over feature breadth.
 
+**Live demo:** [mbogdan0.github.io/shamir-secret](https://mbogdan0.github.io/shamir-secret/)
+
 ## 🔒 Security-Critical Summary (Read First)
 
 - The production artifact is a single self-contained file: `dist/index.html`.
@@ -23,6 +25,13 @@ Critical operational caveats:
 - Clipboard contents are outside the app trust boundary after copy operations.
 - SLIP-0039 cannot confirm intended passphrase correctness.
 - This repository is not a formal third-party cryptographic audit.
+
+## 🚀 Quick Start (End User, No Build Required)
+
+1. Download `dist/index.html` from the latest GitHub release assets.
+2. Verify the published SHA-256 from [RELEASE_NOTES.md](./RELEASE_NOTES.md).
+3. Open the verified file locally in a trusted browser.
+4. Keep the machine offline during secret handling whenever possible.
 
 ## ⚠️ Threat Model and Trust Boundaries
 
@@ -183,3 +192,9 @@ Repository documents:
 
 - `SECURITY_REVIEW.md`
 - `THIRD_PARTY_NOTICES.md`
+- `RELEASE_NOTES.md`
+- `LICENSE`
+
+## 📄 License
+
+This project is licensed under the MIT License. See `LICENSE`.
