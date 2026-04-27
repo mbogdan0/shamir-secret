@@ -2,7 +2,8 @@ node_modules/
 .DS_Store
 .cache/
 coverage/
-dist/
+dist/*
+!dist/index.html
 .idea/
 *.iml
 *.log
