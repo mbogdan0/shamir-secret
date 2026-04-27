@@ -120,9 +120,11 @@ The corresponding test suite (`test/build.test.mjs`) verifies these invariants c
 Core checks:
 
 ```bash
-npm run lint
-npm test
-npm run build
+npm run check
+npm run audit
+npm run audit:prod
+npm run audit:signatures
+npm run --silent sbom > sbom.cdx.json
 ```
 
 What validation covers:
@@ -130,7 +132,11 @@ What validation covers:
 - Protocol behavior and error semantics.
 - Official/vector-based interoperability checks.
 - Offline artifact invariants and CSP presence.
+- TypeScript `checkJs` contracts for plain JavaScript source, scripts, and tests.
+- Zero runtime npm dependency policy for the offline app.
+- Runtime source policy checks for unsafe browser APIs and non-relative runtime imports.
 - Style and formatting consistency with blocking lint policy.
+- npm audit, registry signature verification, and CycloneDX SBOM generation.
 
 Pre-commit enforcement:
 
@@ -157,8 +163,10 @@ npm run build        # Build strict offline artifact -> dist/index.html
 npm run preview      # Preview dist/ locally
 npm test             # Node test runner
 npm run lint         # ESLint + Stylelint + Prettier check
+npm run typecheck    # TypeScript checkJs validation for plain JavaScript
+npm run verify:build # Verify tracked dist/index.html matches source output
 npm run format       # Full repository formatting
-npm run check        # lint + test + build
+npm run check        # lint + typecheck + build-artifact verification + tests + build
 ```
 
 ## 🛠️ Operational Usage Guidance

@@ -1,3 +1,22 @@
+/**
+ * @typedef {ReturnType<typeof import("./dom.js").getElements>} UiElements
+ * @typedef {{ bytesToHex(bytes: Uint8Array): string, decodeTextMasterSecret(bytes: Uint8Array): string | null | Promise<string | null> }} RecoveryCore
+ * @typedef {{
+ *   hex: string,
+ *   text: string,
+ *   hasText: boolean,
+ *   hexHeading: string,
+ *   hexHelpText: string,
+ *   message: string,
+ *   tone: "warning"
+ * }} RecoveryOutput
+ */
+
+/**
+ * @param {Uint8Array} recovered
+ * @param {RecoveryCore} core
+ * @returns {Promise<RecoveryOutput>}
+ */
 export async function getRecoveryOutput(recovered, core) {
   const text = await core.decodeTextMasterSecret(recovered);
   const hex = core.bytesToHex(recovered);
@@ -27,6 +46,12 @@ export async function getRecoveryOutput(recovered, core) {
   };
 }
 
+/**
+ * @param {UiElements} elements
+ * @param {Uint8Array} recovered
+ * @param {RecoveryCore} core
+ * @returns {Promise<RecoveryOutput>}
+ */
 export async function renderRecoveryOutput(elements, recovered, core) {
   const output = await getRecoveryOutput(recovered, core);
   elements.recoveredTextBlock.hidden = !output.hasText;
@@ -38,6 +63,9 @@ export async function renderRecoveryOutput(elements, recovered, core) {
   return output;
 }
 
+/**
+ * @param {UiElements} elements
+ */
 export function clearRecoveryOutput(elements) {
   elements.recoverResult.hidden = true;
   elements.recoveredTextBlock.hidden = true;

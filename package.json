@@ -1,6 +1,6 @@
 {
   "name": "shamir-secret",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,9 +11,17 @@
     "lint": "npm run lint:js && npm run lint:css && npm run format:check",
     "lint:js": "eslint . --max-warnings=0",
     "lint:css": "stylelint \"src/**/*.css\" --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "audit": "npm audit --audit-level=moderate",
+    "audit:prod": "npm audit --omit=dev --audit-level=moderate",
+    "audit:signatures": "npm audit signatures",
+    "sbom": "npm sbom --package-lock-only --sbom-format=cyclonedx",
+    "verify:build": "node scripts/build.js --check",
+    "verify:runtime-deps": "node scripts/verify-runtime-deps.js",
+    "verify:source-policy": "node scripts/verify-source-policy.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run lint && npm test && npm run build",
+    "check": "npm run lint && npm run typecheck && npm run verify:build && npm test && npm run verify:runtime-deps && npm run verify:source-policy && npm run build",
     "prepare": "husky"
   },
   "engines": {
@@ -21,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/node": "^22.19.17",
     "eslint": "^10.2.1",
     "fast-check": "^4.7.0",
     "globals": "^17.5.0",
@@ -29,6 +38,7 @@
     "prettier": "^3.8.3",
     "stylelint": "^17.9.0",
     "stylelint-config-standard": "^40.0.0",
+    "typescript": "^6.0.3",
     "vite": "^8.0.10"
   },
   "lint-staged": {
@@ -41,8 +51,5 @@
     "*.css": [
       "stylelint --max-warnings=0"
     ]
-  },
-  "dependencies": {
-    "@scure/base": "2.2.0"
   }
 }

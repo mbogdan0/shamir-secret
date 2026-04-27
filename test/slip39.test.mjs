@@ -13,14 +13,36 @@ import {
   generateMnemonics as generateMnemonicsSource
 } from "../src/js/slip39/mnemonics.js";
 
+/**
+ * @typedef {{ subtle: unknown, getRandomValues(target: Uint8Array): Uint8Array }} TestCrypto
+ */
+
 const execFileAsync = promisify(execFile);
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const VECTOR_PATH = resolve(projectRoot, "test", "fixtures", "slip39-vectors.json");
 const INTEROP_MATRIX_PATH = resolve(projectRoot, "test", "fixtures", "slip39-interop-matrix.json");
 const SECRET_16 = Uint8Array.from({ length: 16 }, (_, index) => index);
 const SECRET_32 = Uint8Array.from({ length: 32 }, (_, index) => index);
+const ALL_BYTES = Uint8Array.from({ length: 256 }, (_, index) => index);
 const SECRET_16_HEX = "000102030405060708090a0b0c0d0e0f";
 const SECRET_32_HEX = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const ALL_BYTES_HEX =
+  "000102030405060708090a0b0c0d0e0f" +
+  "101112131415161718191a1b1c1d1e1f" +
+  "202122232425262728292a2b2c2d2e2f" +
+  "303132333435363738393a3b3c3d3e3f" +
+  "404142434445464748494a4b4c4d4e4f" +
+  "505152535455565758595a5b5c5d5e5f" +
+  "606162636465666768696a6b6c6d6e6f" +
+  "707172737475767778797a7b7c7d7e7f" +
+  "808182838485868788898a8b8c8d8e8f" +
+  "909192939495969798999a9b9c9d9e9f" +
+  "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf" +
+  "b0b1b2b3b4b5b6b7b8b9babbbcbdbebf" +
+  "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf" +
+  "d0d1d2d3d4d5d6d7d8d9dadbdcdddedf" +
+  "e0e1e2e3e4e5e6e7e8e9eaebecedeeef" +
+  "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff";
 const INDEX_UNIVERSE = Array.from({ length: 16 }, (_, index) => index);
 const PRINTABLE_ASCII_ARBITRARY = fc
   .array(fc.integer({ min: 32, max: 126 }), { minLength: 0, maxLength: 32 })
@@ -77,7 +99,11 @@ const appScriptPromise = (async () => {
   return scriptMatch[1];
 })();
 
-async function loadAppCore(crypto = webcrypto) {
+/**
+ * @param {TestCrypto} [crypto]
+ * @returns {Promise<any>}
+ */
+async function loadAppCore(crypto = /** @type {TestCrypto} */ (webcrypto)) {
   const appScript = await appScriptPromise;
   const context = vm.createContext({
     crypto,
@@ -90,10 +116,17 @@ async function loadAppCore(crypto = webcrypto) {
   return context.__SLIP39_APP__;
 }
 
+/**
+ * @returns {TestCrypto}
+ */
 function deterministicCrypto() {
   let counter = 0;
   return {
     subtle: webcrypto.subtle,
+    /**
+     * @param {Uint8Array} target
+     * @returns {Uint8Array}
+     */
     getRandomValues(target) {
       for (let index = 0; index < target.length; index += 1) {
         target[index] = counter & 0xff;
@@ -106,16 +139,44 @@ function deterministicCrypto() {
 
 const appPromise = loadAppCore();
 
+/**
+ * @param {Uint8Array} bytes
+ * @returns {number[]}
+ */
 function asArray(bytes) {
   return [...bytes];
 }
 
+/**
+ * @param {Uint8Array} bytes
+ * @returns {string}
+ */
 function bytesToHexLocal(bytes) {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * @param {string} value
+ * @returns {number}
+ */
 function utf8Length(value) {
   return new TextEncoder().encode(value).length;
+}
+
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
+function thrownMessage(error) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+  assert.fail(`Expected thrown error with a message, got ${String(error)}`);
 }
 
 test("wordlist has the required size and unique entries", async () => {
@@ -276,6 +337,8 @@ test("hex helpers and master secret parsing validate pure byte input", async () 
   assert.deepEqual(asArray(hexToBytes("000102ff")), [0, 1, 2, 255]);
   assert.deepEqual(asArray(hexToBytes("00 01\n02\tff")), [0, 1, 2, 255]);
   assert.equal(bytesToHex(new Uint8Array([0, 1, 2, 255])), "000102ff");
+  assert.equal(bytesToHex(ALL_BYTES), ALL_BYTES_HEX);
+  assert.deepEqual(asArray(hexToBytes(ALL_BYTES_HEX.toUpperCase())), asArray(ALL_BYTES));
   assert.equal(
     normalizeHex(`  ${SECRET_16_HEX.slice(0, 12).toUpperCase()}\n${SECRET_16_HEX.slice(12)}  `),
     SECRET_16_HEX
@@ -292,6 +355,19 @@ test("hex helpers and master secret parsing validate pure byte input", async () 
   assert.throws(() => parseMasterSecretHex("00".repeat(15)), /at least 16 bytes/);
   assert.throws(() => parseMasterSecretHex(`${SECRET_16_HEX}0`), /odd number of digits/);
   assert.throws(() => parseMasterSecretHex("00".repeat(17)), /multiple of 2/);
+});
+
+test("property: local hex encoder and decoder round-trip arbitrary bytes", async () => {
+  const { bytesToHex, hexToBytes } = await appPromise;
+  fc.assert(
+    fc.property(fc.uint8Array({ minLength: 1, maxLength: 512 }), (bytes) => {
+      const encoded = bytesToHex(bytes);
+      assert.match(encoded, /^[0-9a-f]*$/);
+      assert.equal(encoded.length, bytes.length * 2);
+      assert.deepEqual(asArray(hexToBytes(encoded)), asArray(bytes));
+    }),
+    { numRuns: 1000 }
+  );
 });
 
 test("hex parsing preserves exact validation error messages", async () => {
@@ -315,7 +391,7 @@ test("hex parsing preserves exact validation error messages", async () => {
     assert.throws(
       () => parseMasterSecretHex(input),
       (error) => {
-        assert.equal(error.message, expectedMessage);
+        assert.equal(thrownMessage(error), expectedMessage);
         return true;
       }
     );
@@ -427,14 +503,20 @@ test("parsed shares reject invalid checksum, duplicates, mismatches, and group i
 });
 
 test("splitSecret rejects non-Uint8Array and short shared secrets", async () => {
-  const { Slip39Error, splitSecret } = await appPromise;
+  const { splitSecret } = await appPromise;
   await assert.rejects(
     () => splitSecret(2, 3, new Uint8Array(4)),
-    (error) => error instanceof Slip39Error && /at least \d+ bytes/.test(error.message)
+    (error) => {
+      assert.match(thrownMessage(error), /at least \d+ bytes/);
+      return true;
+    }
   );
   await assert.rejects(
-    () => splitSecret(2, 3, "not bytes"),
-    (error) => error instanceof Slip39Error && /Uint8Array/.test(error.message)
+    () => splitSecret(2, 3, /** @type {Uint8Array} */ (/** @type {unknown} */ ("not bytes"))),
+    (error) => {
+      assert.match(thrownMessage(error), /Uint8Array/);
+      return true;
+    }
   );
 });
 
@@ -456,7 +538,10 @@ test(
     const originalFill = Uint8Array.prototype.fill;
     let observedPassphraseZeroize = false;
 
-    Uint8Array.prototype.fill = function patchedFill(value, ...rest) {
+    Uint8Array.prototype.fill = function patchedFill(
+      /** @type {number} */ value,
+      /** @type {number[]} */ ...rest
+    ) {
       const before = new Uint8Array(this);
       const result = originalFill.call(this, value, ...rest);
 
@@ -482,7 +567,7 @@ test(
 );
 
 test("flexible recovery aggregates mixed root causes across failed subsets", async () => {
-  const { Share, Slip39Error, combineMnemonicsFlexible } = await appPromise;
+  const { Share, combineMnemonicsFlexible } = await appPromise;
 
   const lengthMismatchGroupFirst = new Share(
     777,
@@ -541,11 +626,11 @@ test("flexible recovery aggregates mixed root causes across failed subsets", asy
         ""
       ),
     (error) => {
-      assert.ok(error instanceof Slip39Error);
-      assert.match(error.message, /No valid threshold-complete mnemonic subset was found/);
-      assert.match(error.message, /Tried 2 combinations/);
-      assert.match(error.message, /All share values must have the same length/);
-      assert.match(error.message, /Invalid digest of the shared secret/);
+      const message = thrownMessage(error);
+      assert.match(message, /No valid threshold-complete mnemonic subset was found/);
+      assert.match(message, /Tried 2 combinations/);
+      assert.match(message, /All share values must have the same length/);
+      assert.match(message, /Invalid digest of the shared secret/);
       return true;
     }
   );

@@ -1,15 +1,32 @@
-import { hex as scureHex } from "@scure/base";
 import { Slip39Error } from "./errors.js";
 import { validateMasterSecretBytes } from "./validation.js";
 
+const HEX_ALPHABET = "0123456789abcdef";
+
+/**
+ * @param {Uint8Array} bytes
+ * @returns {string}
+ */
 export function bytesToHex(bytes) {
-  return scureHex.encode(bytes);
+  let output = "";
+  for (const byte of bytes) {
+    output += HEX_ALPHABET[byte >>> 4] + HEX_ALPHABET[byte & 0x0f];
+  }
+  return output;
 }
 
+/**
+ * @param {string} hex
+ * @returns {string}
+ */
 export function compactHex(hex) {
   return hex.replace(/\s+/g, "").toLowerCase();
 }
 
+/**
+ * @param {string} hex
+ * @returns {string}
+ */
 export function normalizeHex(hex) {
   const normalized = compactHex(hex);
   if (normalized.length === 0) {
@@ -26,11 +43,23 @@ export function normalizeHex(hex) {
   return normalized;
 }
 
+/**
+ * @param {string} hex
+ * @returns {Uint8Array}
+ */
 export function hexToBytes(hex) {
   const normalized = normalizeHex(hex);
-  return scureHex.decode(normalized);
+  const output = new Uint8Array(normalized.length / 2);
+  for (let index = 0; index < output.length; index += 1) {
+    output[index] = Number.parseInt(normalized.slice(index * 2, index * 2 + 2), 16);
+  }
+  return output;
 }
 
+/**
+ * @param {string} hex
+ * @returns {Uint8Array}
+ */
 export function parseMasterSecretHex(hex) {
   const bytes = hexToBytes(hex);
   validateMasterSecretBytes(bytes);

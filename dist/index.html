@@ -851,6 +851,9 @@ button:disabled {
 	//#endregion
 	//#region src/js/slip39/errors.js
 	var Slip39Error = class extends Error {
+		/**
+		* @param {string} message
+		*/
 		constructor(message) {
 			super(message);
 			this.name = "Slip39Error";
@@ -863,15 +866,32 @@ button:disabled {
 	var WORD_INDEX = new Map(SLIP39_WORDS.map((word, index) => [word, index]));
 	//#endregion
 	//#region src/js/slip39/utils.js
+	/**
+	* @param {number} bitLength
+	* @returns {number}
+	*/
 	function bitsToWords(bitLength) {
 		return Math.ceil(bitLength / 10);
 	}
+	/**
+	* @param {number} bitLength
+	* @returns {number}
+	*/
 	function bitsToBytes(bitLength) {
 		return Math.ceil(bitLength / 8);
 	}
+	/**
+	* @param {number} value
+	* @param {number} divisor
+	* @returns {number}
+	*/
 	function modulo(value, divisor) {
 		return (value % divisor + divisor) % divisor;
 	}
+	/**
+	* @param {...Uint8Array} parts
+	* @returns {Uint8Array}
+	*/
 	function concatBytes(...parts) {
 		const length = parts.reduce((sum, part) => sum + part.length, 0);
 		const output = new Uint8Array(length);
@@ -882,34 +902,60 @@ button:disabled {
 		}
 		return output;
 	}
+	/**
+	* @param {Uint8Array} a
+	* @param {Uint8Array} b
+	* @returns {boolean}
+	*/
 	function bytesEqual(a, b) {
 		if (a.length !== b.length) return false;
 		let diff = 0;
 		for (let index = 0; index < a.length; index += 1) diff |= a[index] ^ b[index];
 		return diff === 0;
 	}
+	/**
+	* @param {Uint8Array} a
+	* @param {Uint8Array} b
+	* @returns {Uint8Array}
+	*/
 	function xorBytes(a, b) {
 		const length = Math.min(a.length, b.length);
 		const output = new Uint8Array(length);
 		for (let index = 0; index < length; index += 1) output[index] = a[index] ^ b[index];
 		return output;
 	}
+	/**
+	* @param {...(Uint8Array | undefined | null)} buffers
+	*/
 	function zeroize(...buffers) {
 		for (const buffer of buffers) if (buffer && typeof buffer.fill === "function") buffer.fill(0);
 	}
+	/**
+	* @param {string} value
+	* @returns {Uint8Array}
+	*/
 	function asciiToBytes(value) {
 		const output = new Uint8Array(value.length);
 		for (let index = 0; index < value.length; index += 1) output[index] = value.charCodeAt(index);
 		return output;
 	}
+	/**
+	* @param {Uint8Array} bytes
+	* @returns {bigint}
+	*/
 	function bytesToBigInt(bytes) {
 		let value = 0n;
 		for (const byte of bytes) value = value << 8n | BigInt(byte);
 		return value;
 	}
+	/**
+	* @param {bigint | number} value
+	* @param {number} length
+	* @returns {Uint8Array}
+	*/
 	function bigIntToBytes(value, length) {
 		const output = new Uint8Array(length);
-		let current = value;
+		let current = BigInt(value);
 		for (let index = length - 1; index >= 0; index -= 1) {
 			output[index] = Number(current & 255n);
 			current >>= 8n;
@@ -917,6 +963,12 @@ button:disabled {
 		if (current !== 0n) throw new Slip39Error("Invalid mnemonic padding.");
 		return output;
 	}
+	/**
+	* @param {bigint | number} value
+	* @param {number} length
+	* @param {number} [radixBits]
+	* @returns {number[]}
+	*/
 	function intToIndices(value, length, radixBits = 10) {
 		const output = new Array(length);
 		const mask = (1n << BigInt(radixBits)) - 1n;
@@ -928,6 +980,11 @@ button:disabled {
 		if (current !== 0n) throw new Slip39Error("Integer does not fit in the requested word count.");
 		return output;
 	}
+	/**
+	* @param {number[]} indices
+	* @param {number} [radixBits]
+	* @returns {bigint}
+	*/
 	function intFromIndices(indices, radixBits = 10) {
 		let value = 0n;
 		for (const index of indices) {
@@ -936,12 +993,25 @@ button:disabled {
 		}
 		return value;
 	}
+	/**
+	* @param {Uint8Array} bytes
+	* @param {number} length
+	* @returns {number[]}
+	*/
 	function bytesToIndices(bytes, length) {
 		return intToIndices(bytesToBigInt(bytes), length, 10);
 	}
+	/**
+	* @param {number[]} indices
+	* @returns {string[]}
+	*/
 	function indicesToWords(indices) {
 		return indices.map((index) => SLIP39_WORDS[index]);
 	}
+	/**
+	* @param {string} mnemonic
+	* @returns {number[]}
+	*/
 	function mnemonicToIndices(mnemonic) {
 		const words = mnemonic.trim().toLowerCase().split(/\s+/).filter(Boolean);
 		if (words.length === 0) throw new Slip39Error("The mnemonic is empty.");
@@ -953,9 +1023,17 @@ button:disabled {
 	}
 	//#endregion
 	//#region src/js/slip39/checksum.js
+	/**
+	* @param {boolean} extendable
+	* @returns {string}
+	*/
 	function customizationString(extendable) {
 		return extendable ? CUSTOMIZATION_STRING_EXTENDABLE : CUSTOMIZATION_STRING_ORIG;
 	}
+	/**
+	* @param {number[]} values
+	* @returns {number}
+	*/
 	function polymod(values) {
 		let chk = 1;
 		for (const value of values) {
@@ -965,6 +1043,11 @@ button:disabled {
 		}
 		return chk;
 	}
+	/**
+	* @param {number[]} data
+	* @param {string} customization
+	* @returns {number[]}
+	*/
 	function createChecksum(data, customization) {
 		const checksum = polymod([
 			...asciiToBytes(customization),
@@ -977,50 +1060,94 @@ button:disabled {
 			0
 		].map((index) => checksum >> 10 * index & 1023);
 	}
+	/**
+	* @param {number[]} data
+	* @param {string} customization
+	* @returns {boolean}
+	*/
 	function verifyChecksum(data, customization) {
 		return polymod([...asciiToBytes(customization), ...data]) === 1;
 	}
 	//#endregion
 	//#region src/js/slip39/crypto.js
+	/**
+	* @param {Uint8Array} bytes
+	* @returns {BufferSource}
+	*/
+	function asBufferSource(bytes) {
+		return bytes;
+	}
+	/**
+	* @returns {Crypto}
+	*/
 	function requireWebCrypto() {
 		const cryptoRef = globalThis.crypto;
 		if (!cryptoRef?.subtle || typeof cryptoRef.getRandomValues !== "function") throw new Slip39Error("Web Crypto API is unavailable in this environment.");
 		return cryptoRef;
 	}
+	/**
+	* @returns {boolean}
+	*/
 	function hasRequiredCrypto() {
 		return Boolean(globalThis.crypto?.subtle && typeof globalThis.crypto.getRandomValues === "function");
 	}
+	/**
+	* @param {number} length
+	* @returns {Uint8Array}
+	*/
 	function randomBytes(length) {
 		const cryptoRef = requireWebCrypto();
 		const output = new Uint8Array(length);
 		for (let offset = 0; offset < length; offset += 65536) cryptoRef.getRandomValues(output.subarray(offset, Math.min(offset + 65536, length)));
 		return output;
 	}
+	/**
+	* @param {Uint8Array} keyBytes
+	* @param {Uint8Array} messageBytes
+	* @returns {Promise<Uint8Array>}
+	*/
 	async function hmacSha256(keyBytes, messageBytes) {
 		const cryptoRef = requireWebCrypto();
-		const key = await cryptoRef.subtle.importKey("raw", keyBytes, {
+		const key = await cryptoRef.subtle.importKey("raw", asBufferSource(keyBytes), {
 			name: "HMAC",
 			hash: "SHA-256"
 		}, false, ["sign"]);
-		return new Uint8Array(await cryptoRef.subtle.sign("HMAC", key, messageBytes));
+		return new Uint8Array(await cryptoRef.subtle.sign("HMAC", key, asBufferSource(messageBytes)));
 	}
+	/**
+	* @param {Uint8Array} messageBytes
+	* @returns {Promise<Uint8Array>}
+	*/
 	async function sha256(messageBytes) {
 		const cryptoRef = requireWebCrypto();
-		return new Uint8Array(await cryptoRef.subtle.digest("SHA-256", messageBytes));
+		return new Uint8Array(await cryptoRef.subtle.digest("SHA-256", asBufferSource(messageBytes)));
 	}
+	/**
+	* @param {Uint8Array} passwordBytes
+	* @param {Uint8Array} saltBytes
+	* @param {number} iterations
+	* @param {number} byteLength
+	* @returns {Promise<Uint8Array>}
+	*/
 	async function pbkdf2Sha256(passwordBytes, saltBytes, iterations, byteLength) {
 		const cryptoRef = requireWebCrypto();
-		const key = await cryptoRef.subtle.importKey("raw", passwordBytes, "PBKDF2", false, ["deriveBits"]);
+		const key = await cryptoRef.subtle.importKey("raw", asBufferSource(passwordBytes), "PBKDF2", false, ["deriveBits"]);
 		const bits = await cryptoRef.subtle.deriveBits({
 			name: "PBKDF2",
 			hash: "SHA-256",
-			salt: saltBytes,
+			salt: asBufferSource(saltBytes),
 			iterations
 		}, key, byteLength * 8);
 		return new Uint8Array(bits);
 	}
 	//#endregion
 	//#region src/js/slip39/gf256.js
+	/**
+	* @typedef {{ x: number, data: Uint8Array }} RawShare
+	*/
+	/**
+	* @returns {{ exp: number[], log: number[] }}
+	*/
 	function precomputeExpLog() {
 		const exp = new Array(255).fill(0);
 		const log = new Array(256).fill(0);
@@ -1037,10 +1164,20 @@ button:disabled {
 		};
 	}
 	var { exp: EXP_TABLE, log: LOG_TABLE } = precomputeExpLog();
+	/**
+	* @param {number} left
+	* @param {number} right
+	* @returns {number}
+	*/
 	function gfMultiply(left, right) {
 		if (left === 0 || right === 0) return 0;
 		return EXP_TABLE[(LOG_TABLE[left] + LOG_TABLE[right]) % 255];
 	}
+	/**
+	* @param {RawShare[]} shares
+	* @param {number} x
+	* @returns {Uint8Array}
+	*/
 	function interpolate(shares, x) {
 		const seen = /* @__PURE__ */ new Set();
 		const lengths = /* @__PURE__ */ new Set();
@@ -1051,7 +1188,7 @@ button:disabled {
 		}
 		if (lengths.size !== 1) throw new Slip39Error("All share values must have the same length.");
 		for (const share of shares) if (share.x === x) return new Uint8Array(share.data);
-		const length = [...lengths][0];
+		const [length] = lengths;
 		const logProduct = shares.reduce((sum, share) => sum + LOG_TABLE[share.x ^ x], 0);
 		const result = new Uint8Array(length);
 		for (const share of shares) {
@@ -1064,326 +1201,11 @@ button:disabled {
 		return result;
 	}
 	//#endregion
-	//#region node_modules/@scure/base/index.js
-	/*! scure-base - MIT License (c) 2022 Paul Miller (paulmillr.com) */
-	function isBytes(a) {
-		return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array" && "BYTES_PER_ELEMENT" in a && a.BYTES_PER_ELEMENT === 1;
-	}
-	/** Asserts something is Uint8Array. */
-	function abytes(b) {
-		if (!isBytes(b)) throw new TypeError("Uint8Array expected");
-	}
-	function isArrayOf(isString, arr) {
-		if (!Array.isArray(arr)) return false;
-		if (arr.length === 0) return true;
-		if (isString) return arr.every((item) => typeof item === "string");
-		else return arr.every((item) => Number.isSafeInteger(item));
-	}
-	function afn(input) {
-		if (typeof input !== "function") throw new TypeError("function expected");
-		return true;
-	}
-	function astr(label, input) {
-		if (typeof input !== "string") throw new TypeError(`${label}: string expected`);
-		return true;
-	}
-	function anumber(n) {
-		if (typeof n !== "number") throw new TypeError(`number expected, got ${typeof n}`);
-		if (!Number.isSafeInteger(n)) throw new RangeError(`invalid integer: ${n}`);
-	}
-	function aArr(input) {
-		if (!Array.isArray(input)) throw new TypeError("array expected");
-	}
-	function astrArr(label, input) {
-		if (!isArrayOf(true, input)) throw new TypeError(`${label}: array of strings expected`);
-	}
-	function anumArr(label, input) {
-		if (!isArrayOf(false, input)) throw new TypeError(`${label}: array of numbers expected`);
-	}
-	/**
-	* @__NO_SIDE_EFFECTS__
-	*/
-	function chain(...args) {
-		const id = (a) => a;
-		const wrap = (a, b) => (c) => a(b(c));
-		return {
-			encode: args.map((x) => x.encode).reduceRight(wrap, id),
-			decode: args.map((x) => x.decode).reduce(wrap, id)
-		};
-	}
-	/**
-	* Encodes integer radix representation to array of strings using alphabet and back.
-	* Could also be array of strings.
-	* @__NO_SIDE_EFFECTS__
-	*/
-	function alphabet(letters) {
-		const lettersA = typeof letters === "string" ? letters.split("") : letters;
-		const len = lettersA.length;
-		astrArr("alphabet", lettersA);
-		const indexes = new Map(lettersA.map((l, i) => [l, i]));
-		return {
-			encode: (digits) => {
-				aArr(digits);
-				return digits.map((i) => {
-					if (!Number.isSafeInteger(i) || i < 0 || i >= len) throw new Error(`alphabet.encode: digit index outside alphabet "${i}". Allowed: ${letters}`);
-					return lettersA[i];
-				});
-			},
-			decode: (input) => {
-				aArr(input);
-				return input.map((letter) => {
-					astr("alphabet.decode", letter);
-					const i = indexes.get(letter);
-					if (i === void 0) throw new Error(`Unknown letter: "${letter}". Allowed: ${letters}`);
-					return i;
-				});
-			}
-		};
-	}
-	/**
-	* @__NO_SIDE_EFFECTS__
-	*/
-	function join(separator = "") {
-		astr("join", separator);
-		return {
-			encode: (from) => {
-				astrArr("join.decode", from);
-				return from.join(separator);
-			},
-			decode: (to) => {
-				astr("join.decode", to);
-				return to.split(separator);
-			}
-		};
-	}
-	/**
-	* Pad strings array so it has integer number of bits
-	* @__NO_SIDE_EFFECTS__
-	*/
-	function padding(bits, chr = "=") {
-		anumber(bits);
-		astr("padding", chr);
-		return {
-			encode(data) {
-				astrArr("padding.encode", data);
-				while (data.length * bits % 8) data.push(chr);
-				return data;
-			},
-			decode(input) {
-				astrArr("padding.decode", input);
-				let end = input.length;
-				if (end * bits % 8) throw new Error("padding: invalid, string should have whole number of bytes");
-				for (; end > 0 && input[end - 1] === chr; end--) if ((end - 1) * bits % 8 === 0) throw new Error("padding: invalid, string has too much padding");
-				return input.slice(0, end);
-			}
-		};
-	}
-	/**
-	* @__NO_SIDE_EFFECTS__
-	*/
-	function normalize(fn) {
-		afn(fn);
-		return {
-			encode: (from) => from,
-			decode: (to) => fn(to)
-		};
-	}
-	var gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
-	var radix2carry = /* @__NO_SIDE_EFFECTS__ */ (from, to) => from + (to - gcd(from, to));
-	var powers = /* @__PURE__ */ (() => {
-		let res = [];
-		for (let i = 0; i < 40; i++) res.push(2 ** i);
-		return res;
-	})();
-	/**
-	* Implemented with numbers, because BigInt is 5x slower
-	*/
-	function convertRadix2(data, from, to, padding) {
-		aArr(data);
-		if (from <= 0 || from > 32) throw new RangeError(`convertRadix2: wrong from=${from}`);
-		if (to <= 0 || to > 32) throw new RangeError(`convertRadix2: wrong to=${to}`);
-		if (/* @__PURE__ */ radix2carry(from, to) > 32) throw new Error(`convertRadix2: carry overflow from=${from} to=${to} carryBits=${/* @__PURE__ */ radix2carry(from, to)}`);
-		let carry = 0;
-		let pos = 0;
-		const max = powers[from];
-		const mask = powers[to] - 1;
-		const res = [];
-		for (const n of data) {
-			anumber(n);
-			if (n >= max) throw new Error(`convertRadix2: invalid data word=${n} from=${from}`);
-			carry = carry << from | n;
-			if (pos + from > 32) throw new Error(`convertRadix2: carry overflow pos=${pos} from=${from}`);
-			pos += from;
-			for (; pos >= to; pos -= to) res.push((carry >> pos - to & mask) >>> 0);
-			const pow = powers[pos];
-			if (pow === void 0) throw new Error("invalid carry");
-			carry &= pow - 1;
-		}
-		carry = carry << to - pos & mask;
-		if (!padding && pos >= from) throw new Error("Excess padding");
-		if (!padding && carry > 0) throw new Error(`Non-zero padding: ${carry}`);
-		if (padding && pos > 0) res.push(carry >>> 0);
-		return res;
-	}
-	/**
-	* If both bases are power of same number (like `2**8 <-> 2**64`),
-	* there is a linear algorithm. For now we have implementation for power-of-two bases only.
-	* @__NO_SIDE_EFFECTS__
-	*/
-	function radix2(bits, revPadding = false) {
-		anumber(bits);
-		if (bits <= 0 || bits > 32) throw new RangeError("radix2: bits should be in (0..32]");
-		if (/* @__PURE__ */ radix2carry(8, bits) > 32 || /* @__PURE__ */ radix2carry(bits, 8) > 32) throw new RangeError("radix2: carry overflow");
-		return {
-			encode: (bytes) => {
-				if (!isBytes(bytes)) throw new TypeError("radix2.encode input should be Uint8Array");
-				return convertRadix2(Array.from(bytes), 8, bits, !revPadding);
-			},
-			decode: (digits) => {
-				anumArr("radix2.decode", digits);
-				return Uint8Array.from(convertRadix2(digits, bits, 8, revPadding));
-			}
-		};
-	}
-	function unsafeWrapper(fn) {
-		afn(fn);
-		return function(...args) {
-			try {
-				return fn.apply(null, args);
-			} catch (e) {}
-		};
-	}
-	chain(radix2(4), alphabet("0123456789ABCDEF"), join(""));
-	chain(radix2(5), alphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"), padding(5), join(""));
-	chain(radix2(5), alphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"), join(""));
-	chain(radix2(5), alphabet("0123456789ABCDEFGHIJKLMNOPQRSTUV"), padding(5), join(""));
-	chain(radix2(5), alphabet("0123456789ABCDEFGHIJKLMNOPQRSTUV"), join(""));
-	chain(radix2(5), alphabet("0123456789ABCDEFGHJKMNPQRSTVWXYZ"), join(""), normalize((s) => s.toUpperCase().replace(/O/g, "0").replace(/[IL]/g, "1")));
-	var hasBase64Builtin = typeof Uint8Array.from([]).toBase64 === "function" && typeof Uint8Array.fromBase64 === "function";
-	hasBase64Builtin || chain(radix2(6), alphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"), padding(6), join(""));
-	chain(radix2(6), alphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"), join(""));
-	hasBase64Builtin || chain(radix2(6), alphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"), padding(6), join(""));
-	chain(radix2(6), alphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"), join(""));
-	var BECH_ALPHABET = chain(alphabet("qpzry9x8gf2tvdw0s3jn54khce6mua7l"), join(""));
-	var POLYMOD_GENERATORS = [
-		996825010,
-		642813549,
-		513874426,
-		1027748829,
-		705979059
-	];
-	function bech32Polymod(pre) {
-		const b = pre >> 25;
-		let chk = (pre & 33554431) << 5;
-		for (let i = 0; i < POLYMOD_GENERATORS.length; i++) if ((b >> i & 1) === 1) chk ^= POLYMOD_GENERATORS[i];
-		return chk;
-	}
-	function bechChecksum(prefix, words, encodingConst = 1) {
-		const len = prefix.length;
-		let chk = 1;
-		for (let i = 0; i < len; i++) {
-			const c = prefix.charCodeAt(i);
-			if (c < 33 || c > 126) throw new Error(`Invalid prefix (${prefix})`);
-			chk = bech32Polymod(chk) ^ c >> 5;
-		}
-		chk = bech32Polymod(chk);
-		for (let i = 0; i < len; i++) chk = bech32Polymod(chk) ^ prefix.charCodeAt(i) & 31;
-		for (let v of words) chk = bech32Polymod(chk) ^ v;
-		for (let i = 0; i < 6; i++) chk = bech32Polymod(chk);
-		chk ^= encodingConst;
-		return BECH_ALPHABET.encode(convertRadix2([chk % powers[30]], 30, 5, false));
-	}
-	/**
-	* @__NO_SIDE_EFFECTS__
-	*/
-	function genBech32(encoding) {
-		const ENCODING_CONST = encoding === "bech32" ? 1 : 734539939;
-		const _words = radix2(5);
-		const fromWords = _words.decode;
-		const toWords = _words.encode;
-		const fromWordsUnsafe = unsafeWrapper(fromWords);
-		function encode(prefix, words, limit = 90) {
-			astr("bech32.encode prefix", prefix);
-			if (isBytes(words)) words = Array.from(words);
-			anumArr("bech32.encode", words);
-			const plen = prefix.length;
-			if (plen === 0) throw new TypeError(`Invalid prefix length ${plen}`);
-			const actualLength = plen + 7 + words.length;
-			if (limit !== false && actualLength > limit) throw new TypeError(`Length ${actualLength} exceeds limit ${limit}`);
-			const lowered = prefix.toLowerCase();
-			const sum = bechChecksum(lowered, words, ENCODING_CONST);
-			return `${lowered}1${BECH_ALPHABET.encode(words)}${sum}`;
-		}
-		function decode(str, limit = 90) {
-			astr("bech32.decode input", str);
-			const slen = str.length;
-			if (slen < 8 || limit !== false && slen > limit) throw new TypeError(`invalid string length: ${slen} (${str}). Expected (8..${limit})`);
-			const lowered = str.toLowerCase();
-			if (str !== lowered && str !== str.toUpperCase()) throw new Error(`String must be lowercase or uppercase`);
-			const sepIndex = lowered.lastIndexOf("1");
-			if (sepIndex === 0 || sepIndex === -1) throw new Error(`Letter "1" must be present between prefix and data only`);
-			const prefix = lowered.slice(0, sepIndex);
-			const data = lowered.slice(sepIndex + 1);
-			if (data.length < 6) throw new Error("Data must be at least 6 characters long");
-			const words = BECH_ALPHABET.decode(data).slice(0, -6);
-			const sum = bechChecksum(prefix, words, ENCODING_CONST);
-			if (!data.endsWith(sum)) throw new Error(`Invalid checksum in ${str}: expected "${sum}"`);
-			return {
-				prefix,
-				words
-			};
-		}
-		const decodeUnsafe = unsafeWrapper(decode);
-		function decodeToBytes(str) {
-			const { prefix, words } = decode(str, false);
-			return {
-				prefix,
-				words,
-				bytes: fromWords(words)
-			};
-		}
-		function encodeFromBytes(prefix, bytes) {
-			return encode(prefix, toWords(bytes));
-		}
-		return {
-			encode,
-			decode,
-			encodeFromBytes,
-			decodeToBytes,
-			decodeUnsafe,
-			fromWords,
-			fromWordsUnsafe,
-			toWords
-		};
-	}
-	genBech32("bech32");
-	genBech32("bech32m");
-	"".isWellFormed;
-	var hasHexBuiltin = typeof Uint8Array.from([]).toHex === "function" && typeof Uint8Array.fromHex === "function";
-	/**
-	* hex string decoder. Uses built-in function, when available.
-	* Lowercase codec; unlike `base16`, this variant accepts either hex case and emits lowercase.
-	* @example
-	* ```js
-	* const b = hex.decode("0102ff"); // => new Uint8Array([ 1, 2, 255 ])
-	* const str = hex.encode(b); // "0102ff"
-	* ```
-	*/
-	var hex = /* @__PURE__ */ Object.freeze(hasHexBuiltin ? {
-		encode(data) {
-			abytes(data);
-			return data.toHex();
-		},
-		decode(s) {
-			astr("hex", s);
-			return Uint8Array.fromHex(s);
-		}
-	} : chain(radix2(4), alphabet("0123456789abcdef"), join(""), normalize((s) => {
-		if (typeof s !== "string" || s.length % 2 !== 0) throw new TypeError(`hex.decode: expected string, got ${typeof s} with length ${s.length}`);
-		return s.toLowerCase();
-	})));
-	//#endregion
 	//#region src/js/slip39/validation.js
+	/**
+	* @param {string} passphrase
+	* @returns {Uint8Array}
+	*/
 	function validatePassphrase(passphrase) {
 		for (let index = 0; index < passphrase.length; index += 1) {
 			const codePoint = passphrase.charCodeAt(index);
@@ -1391,35 +1213,67 @@ button:disabled {
 		}
 		return asciiToBytes(passphrase);
 	}
+	/**
+	* @param {number} identifier
+	*/
 	function validateIdentifier(identifier) {
 		if (!Number.isInteger(identifier) || identifier < 0 || identifier >= 32768) throw new Slip39Error("The SLIP-0039 identifier must be an integer from 0 to 32767.");
 	}
+	/**
+	* @param {Uint8Array} masterSecret
+	*/
 	function validateMasterSecretBytes(masterSecret) {
 		if (Object.prototype.toString.call(masterSecret) !== "[object Uint8Array]") throw new Slip39Error("The master secret must be bytes.");
 		if (masterSecret.length * 8 < 128) throw new Slip39Error("The master secret must be at least 16 bytes.");
 		if (masterSecret.length % 2 !== 0) throw new Slip39Error("The master secret byte length must be a multiple of 2. Add or remove a full byte intentionally; this app will not auto-pad.");
 	}
+	/**
+	* @param {number} threshold
+	* @param {number} shareCount
+	*/
 	function validateShareParameters(threshold, shareCount) {
 		if (!Number.isInteger(threshold) || threshold < 1) throw new Slip39Error("Threshold must be a positive integer.");
 		if (!Number.isInteger(shareCount) || shareCount < 1) throw new Slip39Error("Total shares must be a positive integer.");
 		if (threshold > shareCount) throw new Slip39Error("Threshold must not exceed total shares.");
 		if (shareCount > 16) throw new Slip39Error(`Total shares must not exceed 16.`);
 	}
+	/**
+	* @param {number} threshold
+	* @param {number} shareCount
+	*/
 	function validateSingleGroupParameters(threshold, shareCount) {
 		validateShareParameters(threshold, shareCount);
 		if (threshold === 1 && shareCount > 1) throw new Slip39Error("SLIP-0039 requires 1-of-1 when the member threshold is 1.");
 	}
+	/**
+	* @param {number} iterationExponent
+	*/
 	function validateIterationExponent(iterationExponent) {
 		if (!Number.isInteger(iterationExponent) || iterationExponent < 0 || iterationExponent > 15) throw new Slip39Error("Iteration exponent must be an integer from 0 to 15.");
 	}
 	//#endregion
 	//#region src/js/slip39/hex.js
+	var HEX_ALPHABET = "0123456789abcdef";
+	/**
+	* @param {Uint8Array} bytes
+	* @returns {string}
+	*/
 	function bytesToHex(bytes) {
-		return hex.encode(bytes);
+		let output = "";
+		for (const byte of bytes) output += HEX_ALPHABET[byte >>> 4] + HEX_ALPHABET[byte & 15];
+		return output;
 	}
+	/**
+	* @param {string} hex
+	* @returns {string}
+	*/
 	function compactHex(hex) {
 		return hex.replace(/\s+/g, "").toLowerCase();
 	}
+	/**
+	* @param {string} hex
+	* @returns {string}
+	*/
 	function normalizeHex(hex) {
 		const normalized = compactHex(hex);
 		if (normalized.length === 0) throw new Slip39Error("The master secret hex is empty.");
@@ -1427,10 +1281,20 @@ button:disabled {
 		if (normalized.length % 2 !== 0) throw new Slip39Error("The master secret hex has an odd number of digits. Add or remove one hex digit intentionally; this app will not auto-pad.");
 		return normalized;
 	}
-	function hexToBytes(hex$1) {
-		const normalized = normalizeHex(hex$1);
-		return hex.decode(normalized);
+	/**
+	* @param {string} hex
+	* @returns {Uint8Array}
+	*/
+	function hexToBytes(hex) {
+		const normalized = normalizeHex(hex);
+		const output = new Uint8Array(normalized.length / 2);
+		for (let index = 0; index < output.length; index += 1) output[index] = Number.parseInt(normalized.slice(index * 2, index * 2 + 2), 16);
+		return output;
 	}
+	/**
+	* @param {string} hex
+	* @returns {Uint8Array}
+	*/
 	function parseMasterSecretHex(hex) {
 		const bytes = hexToBytes(hex);
 		validateMasterSecretBytes(bytes);
@@ -1438,17 +1302,40 @@ button:disabled {
 	}
 	//#endregion
 	//#region src/js/slip39/cipher.js
+	/**
+	* @param {number} index
+	* @param {Uint8Array} passphraseBytes
+	* @param {number} iterationExponent
+	* @param {Uint8Array} salt
+	* @param {Uint8Array} right
+	* @returns {Promise<Uint8Array>}
+	*/
 	async function roundFunction(index, passphraseBytes, iterationExponent, salt, right) {
 		return pbkdf2Sha256(concatBytes(new Uint8Array([index]), passphraseBytes), concatBytes(salt, right), BASE_ITERATION_COUNT * 2 ** iterationExponent / 4, right.length);
 	}
+	/**
+	* @param {number} identifier
+	* @param {boolean} extendable
+	* @returns {Uint8Array}
+	*/
 	function saltFor(identifier, extendable) {
 		if (extendable) return new Uint8Array();
 		const idBytes = bigIntToBytes(BigInt(identifier), bitsToBytes(15));
 		return concatBytes(asciiToBytes(CUSTOMIZATION_STRING_ORIG), idBytes);
 	}
+	/**
+	* @param {Uint8Array} masterSecret
+	* @param {Uint8Array} passphraseBytes
+	* @param {number} iterationExponent
+	* @param {number} identifier
+	* @param {boolean} extendable
+	* @returns {Promise<Uint8Array>}
+	*/
 	async function encrypt(masterSecret, passphraseBytes, iterationExponent, identifier, extendable) {
 		if (masterSecret.length % 2 !== 0) throw new Slip39Error("The master secret byte length must be even.");
+		/** @type {Uint8Array<ArrayBufferLike>} */
 		let left = masterSecret.slice(0, masterSecret.length / 2);
+		/** @type {Uint8Array<ArrayBufferLike>} */
 		let right = masterSecret.slice(masterSecret.length / 2);
 		const salt = saltFor(identifier, extendable);
 		try {
@@ -1464,9 +1351,19 @@ button:disabled {
 			zeroize(left, right, salt);
 		}
 	}
+	/**
+	* @param {Uint8Array} encryptedMasterSecret
+	* @param {Uint8Array} passphraseBytes
+	* @param {number} iterationExponent
+	* @param {number} identifier
+	* @param {boolean} extendable
+	* @returns {Promise<Uint8Array>}
+	*/
 	async function decrypt(encryptedMasterSecret, passphraseBytes, iterationExponent, identifier, extendable) {
 		if (encryptedMasterSecret.length % 2 !== 0) throw new Slip39Error("The encrypted master secret byte length must be even.");
+		/** @type {Uint8Array<ArrayBufferLike>} */
 		let left = encryptedMasterSecret.slice(0, encryptedMasterSecret.length / 2);
+		/** @type {Uint8Array<ArrayBufferLike>} */
 		let right = encryptedMasterSecret.slice(encryptedMasterSecret.length / 2);
 		const salt = saltFor(identifier, extendable);
 		try {
@@ -1482,14 +1379,31 @@ button:disabled {
 			zeroize(left, right, salt);
 		}
 	}
+	/**
+	* @returns {number}
+	*/
 	function randomIdentifier() {
 		return Number(bytesToBigInt(randomBytes(bitsToBytes(15)))) & 32767;
 	}
 	//#endregion
 	//#region src/js/slip39/secret-sharing.js
+	/**
+	* @typedef {{ x: number, data: Uint8Array }} RawShare
+	*/
+	/**
+	* @param {Uint8Array} randomPart
+	* @param {Uint8Array} sharedSecret
+	* @returns {Promise<Uint8Array>}
+	*/
 	async function createDigest(randomPart, sharedSecret) {
 		return (await hmacSha256(randomPart, sharedSecret)).slice(0, 4);
 	}
+	/**
+	* @param {number} threshold
+	* @param {number} shareCount
+	* @param {Uint8Array} sharedSecret
+	* @returns {Promise<RawShare[]>}
+	*/
 	async function splitSecret(threshold, shareCount, sharedSecret) {
 		validateShareParameters(threshold, shareCount);
 		if (Object.prototype.toString.call(sharedSecret) !== "[object Uint8Array]") throw new Slip39Error("Shared secret must be a Uint8Array.");
@@ -1523,6 +1437,11 @@ button:disabled {
 		zeroize(randomPart, digest);
 		return shares;
 	}
+	/**
+	* @param {number} threshold
+	* @param {RawShare[]} shares
+	* @returns {Promise<Uint8Array>}
+	*/
 	async function recoverSecret(threshold, shares) {
 		if (threshold === 1) return new Uint8Array(shares[0].data);
 		const sharedSecret = interpolate(shares, 255);
@@ -1539,17 +1458,40 @@ button:disabled {
 	//#endregion
 	//#region src/js/slip39/share.js
 	var Share = class Share {
+		/**
+		* @param {number} identifier
+		* @param {boolean} extendable
+		* @param {number} iterationExponent
+		* @param {number} groupIndex
+		* @param {number} groupThreshold
+		* @param {number} groupCount
+		* @param {number} index
+		* @param {number} memberThreshold
+		* @param {Uint8Array} value
+		*/
 		constructor(identifier, extendable, iterationExponent, groupIndex, groupThreshold, groupCount, index, memberThreshold, value) {
+			/** @type {number} */
 			this.identifier = identifier;
+			/** @type {boolean} */
 			this.extendable = extendable;
+			/** @type {number} */
 			this.iterationExponent = iterationExponent;
+			/** @type {number} */
 			this.groupIndex = groupIndex;
+			/** @type {number} */
 			this.groupThreshold = groupThreshold;
+			/** @type {number} */
 			this.groupCount = groupCount;
+			/** @type {number} */
 			this.index = index;
+			/** @type {number} */
 			this.memberThreshold = memberThreshold;
+			/** @type {Uint8Array} */
 			this.value = new Uint8Array(value);
 		}
+		/**
+		* @returns {string}
+		*/
 		commonKey() {
 			return [
 				this.identifier,
@@ -1559,6 +1501,9 @@ button:disabled {
 				this.groupCount
 			].join(":");
 		}
+		/**
+		* @returns {string}
+		*/
 		groupKey() {
 			return [
 				this.identifier,
@@ -1570,9 +1515,15 @@ button:disabled {
 				this.memberThreshold
 			].join(":");
 		}
+		/**
+		* @returns {number[]}
+		*/
 		encodeIdExp() {
 			return intToIndices(BigInt(this.identifier) << 5n | BigInt(this.extendable ? 1 : 0) << 4n | BigInt(this.iterationExponent), 2);
 		}
+		/**
+		* @returns {number[]}
+		*/
 		encodeShareParams() {
 			let value = BigInt(this.groupIndex);
 			value = value << 4n | BigInt(this.groupThreshold - 1);
@@ -1581,6 +1532,9 @@ button:disabled {
 			value = value << 4n | BigInt(this.memberThreshold - 1);
 			return intToIndices(value, 2);
 		}
+		/**
+		* @returns {string[]}
+		*/
 		words() {
 			const valueWordCount = bitsToWords(this.value.length * 8);
 			const shareData = [
@@ -1591,9 +1545,16 @@ button:disabled {
 			const checksum = createChecksum(shareData, customizationString(this.extendable));
 			return indicesToWords([...shareData, ...checksum]);
 		}
+		/**
+		* @returns {string}
+		*/
 		toMnemonic() {
 			return this.words().join(" ");
 		}
+		/**
+		* @param {string} mnemonic
+		* @returns {Share}
+		*/
 		static fromMnemonic(mnemonic) {
 			const mnemonicData = mnemonicToIndices(mnemonic);
 			if (mnemonicData.length < MIN_MNEMONIC_LENGTH_WORDS) throw new Slip39Error(`Invalid mnemonic length. Each mnemonic must be at least ${MIN_MNEMONIC_LENGTH_WORDS} words.`);
@@ -1616,23 +1577,46 @@ button:disabled {
 	};
 	//#endregion
 	//#region src/js/slip39/mnemonics.js
+	/**
+	* @typedef {{ x: number, data: Uint8Array }} RawShare
+	* @typedef {{ identifier: number, extendable: boolean, iterationExponent: number, ciphertext: Uint8Array }} EncryptedMasterSecret
+	* @typedef {{ identifier?: number, extendable?: boolean, iterationExponent?: number }} GenerateOptions
+	* @typedef {{ mnemonic: string, share: Share }} FlexibleShareEntry
+	* @typedef {{ groupKey: string, sharesByMemberIndex: Map<number, FlexibleShareEntry> }} FlexibleGroup
+	*/
 	var ShareGroup = class {
 		constructor() {
+			/** @type {Map<number, Share>} */
 			this.shares = /* @__PURE__ */ new Map();
+			/** @type {string | null} */
 			this.groupKeyValue = null;
 		}
+		/**
+		* @param {Share} share
+		*/
 		add(share) {
 			if (this.groupKeyValue && this.groupKeyValue !== share.groupKey()) throw new Slip39Error("Invalid set of mnemonics. Group parameters do not match.");
 			if (this.shares.has(share.index)) throw new Slip39Error("Invalid set of mnemonics. Member share indices must be unique.");
 			this.groupKeyValue = share.groupKey();
 			this.shares.set(share.index, share);
 		}
+		/**
+		* @returns {Share}
+		*/
 		first() {
-			return this.shares.values().next().value;
+			const share = this.shares.values().next().value;
+			if (!share) throw new Slip39Error("The share group is empty.");
+			return share;
 		}
+		/**
+		* @returns {number}
+		*/
 		memberThreshold() {
 			return this.first().memberThreshold;
 		}
+		/**
+		* @returns {RawShare[]}
+		*/
 		rawShares() {
 			return [...this.shares.values()].map((share) => ({
 				x: share.index,
@@ -1640,8 +1624,14 @@ button:disabled {
 			}));
 		}
 	};
+	/**
+	* @param {string[]} mnemonics
+	* @returns {Map<number, ShareGroup>}
+	*/
 	function decodeMnemonics(mnemonics) {
+		/** @type {Map<number, ShareGroup>} */
 		const groups = /* @__PURE__ */ new Map();
+		/** @type {string | null} */
 		let commonKey = null;
 		let decodedCount = 0;
 		for (const mnemonic of mnemonics) {
@@ -1651,16 +1641,25 @@ button:disabled {
 			if (commonKey && commonKey !== share.commonKey()) throw new Slip39Error(`Invalid set of mnemonics. All mnemonics must begin with the same 2 words and use the same group policy.`);
 			commonKey = share.commonKey();
 			if (!groups.has(share.groupIndex)) groups.set(share.groupIndex, new ShareGroup());
-			groups.get(share.groupIndex).add(share);
+			const group = groups.get(share.groupIndex);
+			if (!group) throw new Slip39Error("Invalid mnemonic group state.");
+			group.add(share);
 		}
 		if (decodedCount === 0) throw new Slip39Error("The list of mnemonics is empty.");
 		return groups;
 	}
+	/**
+	* @param {Map<number, ShareGroup>} groups
+	* @returns {Promise<EncryptedMasterSecret>}
+	*/
 	async function recoverEms(groups) {
 		if (groups.size === 0) throw new Slip39Error("The set of shares is empty.");
-		const params = groups.values().next().value.first();
+		const firstGroup = groups.values().next().value;
+		if (!firstGroup) throw new Slip39Error("The set of shares is empty.");
+		const params = firstGroup.first();
 		if (groups.size < params.groupThreshold) throw new Slip39Error(`Insufficient number of mnemonic groups. Required groups: ${params.groupThreshold}.`);
 		if (groups.size !== params.groupThreshold) throw new Slip39Error(`Wrong number of mnemonic groups. Expected ${params.groupThreshold}, got ${groups.size}.`);
+		/** @type {RawShare[]} */
 		const groupShares = [];
 		for (const [groupIndex, group] of groups) {
 			const memberThreshold = group.memberThreshold();
@@ -1677,6 +1676,14 @@ button:disabled {
 			ciphertext: await recoverSecret(params.groupThreshold, groupShares)
 		};
 	}
+	/**
+	* @param {number} threshold
+	* @param {number} shareCount
+	* @param {Uint8Array} masterSecret
+	* @param {string} [passphrase]
+	* @param {GenerateOptions} [options]
+	* @returns {Promise<string[]>}
+	*/
 	async function generateMnemonics(threshold, shareCount, masterSecret, passphrase = "", options = {}) {
 		validateSingleGroupParameters(threshold, shareCount);
 		validateMasterSecretBytes(masterSecret);
@@ -1686,6 +1693,7 @@ button:disabled {
 		const extendable = options.extendable ?? true;
 		const identifier = options.identifier ?? randomIdentifier();
 		validateIdentifier(identifier);
+		/** @type {Uint8Array | undefined} */
 		let encryptedMasterSecret;
 		try {
 			encryptedMasterSecret = await encrypt(masterSecret, passphraseBytes, iterationExponent, identifier, extendable);
@@ -1694,6 +1702,11 @@ button:disabled {
 			zeroize(passphraseBytes, encryptedMasterSecret);
 		}
 	}
+	/**
+	* @param {string[]} mnemonics
+	* @param {string} [passphrase]
+	* @returns {Promise<Uint8Array>}
+	*/
 	async function combineMnemonics(mnemonics, passphrase = "") {
 		const passphraseBytes = validatePassphrase(passphrase);
 		try {
@@ -1703,11 +1716,22 @@ button:disabled {
 			zeroize(passphraseBytes);
 		}
 	}
+	/**
+	* @template T
+	* @param {T[]} items
+	* @param {number} size
+	* @returns {T[][]}
+	*/
 	function combinations(items, size) {
 		if (size < 0 || size > items.length) return [];
 		if (size === 0) return [[]];
+		/** @type {T[][]} */
 		const result = [];
+		/** @type {T[]} */
 		const current = [];
+		/**
+		* @param {number} start
+		*/
 		function visit(start) {
 			if (current.length === size) {
 				result.push([...current]);
@@ -1723,12 +1747,27 @@ button:disabled {
 		visit(0);
 		return result;
 	}
+	/**
+	* @template T
+	* @param {T[][]} groups
+	* @returns {T[][]}
+	*/
 	function cartesianProduct(groups) {
-		return groups.reduce((product, group) => product.flatMap((prefix) => group.map((item) => [...prefix, item])), [[]]);
+		/** @type {T[][]} */
+		let product = [[]];
+		for (const group of groups) product = product.flatMap((prefix) => group.map((item) => [...prefix, item]));
+		return product;
 	}
+	/**
+	* @param {string[]} mnemonics
+	* @returns {Map<number, FlexibleGroup>}
+	*/
 	function parseFlexibleMnemonics(mnemonics) {
+		/** @type {Map<number, FlexibleGroup>} */
 		const groups = /* @__PURE__ */ new Map();
+		/** @type {Set<string>} */
 		const seenMnemonics = /* @__PURE__ */ new Set();
+		/** @type {string | null} */
 		let commonKey = null;
 		let decodedCount = 0;
 		for (const mnemonic of mnemonics) {
@@ -1745,6 +1784,7 @@ button:disabled {
 				sharesByMemberIndex: /* @__PURE__ */ new Map()
 			});
 			const group = groups.get(share.groupIndex);
+			if (!group) throw new Slip39Error("Invalid mnemonic group state.");
 			if (group.groupKey !== share.groupKey()) throw new Slip39Error("Invalid set of mnemonics. Group parameters do not match.");
 			const existing = group.sharesByMemberIndex.get(share.index);
 			if (existing) {
@@ -1759,11 +1799,22 @@ button:disabled {
 		if (decodedCount === 0) throw new Slip39Error("The list of mnemonics is empty.");
 		return groups;
 	}
+	/**
+	* @param {string[]} mnemonics
+	* @param {string} [passphrase]
+	* @returns {Promise<Uint8Array>}
+	*/
 	async function combineMnemonicsFlexible(mnemonics, passphrase = "") {
 		const groups = parseFlexibleMnemonics(mnemonics);
-		const groupThreshold = groups.values().next().value.sharesByMemberIndex.values().next().value.share.groupThreshold;
+		const firstGroup = groups.values().next().value;
+		if (!firstGroup) throw new Slip39Error("The list of mnemonics is empty.");
+		const firstEntry = firstGroup.sharesByMemberIndex.values().next().value;
+		if (!firstEntry) throw new Slip39Error("The list of mnemonics is empty.");
+		const groupThreshold = firstEntry.share.groupThreshold;
 		const completeGroups = [...groups.entries()].map(([groupIndex, group]) => {
-			const memberThreshold = group.sharesByMemberIndex.values().next().value.share.memberThreshold;
+			const firstMemberEntry = group.sharesByMemberIndex.values().next().value;
+			if (!firstMemberEntry) throw new Slip39Error("Invalid mnemonic group state.");
+			const memberThreshold = firstMemberEntry.share.memberThreshold;
 			const shares = [...group.sharesByMemberIndex.values()];
 			return {
 				groupIndex,
@@ -1782,16 +1833,13 @@ button:disabled {
 				try {
 					return await combineMnemonics(candidateMnemonics, passphrase);
 				} catch (error) {
-					const message = error?.message ?? String(error);
+					const message = error instanceof Error ? error.message : String(error);
 					errorCounts.set(message, (errorCounts.get(message) ?? 0) + 1);
 				}
 			}
 		}
 		if (errorCounts.size === 0) throw new Slip39Error("No valid threshold-complete mnemonic subset was found.");
-		if (errorCounts.size === 1) {
-			const [onlyMessage] = errorCounts.keys();
-			throw new Slip39Error(onlyMessage);
-		}
+		if (errorCounts.size === 1) throw new Slip39Error([...errorCounts.keys()][0] ?? "No valid threshold-complete mnemonic subset was found.");
 		const summary = [...errorCounts.entries()].sort((a, b) => b[1] - a[1]).map(([message, count]) => `  - ${message} (x${count} times)`).join("\n");
 		throw new Slip39Error(`No valid threshold-complete mnemonic subset was found.\nTried ${attemptCount} combinations. Most common errors:\n${summary}`);
 	}
@@ -1807,32 +1855,70 @@ button:disabled {
 	var TAG_LENGTH = 16;
 	var PAYLOAD_OFFSET = TAG_OFFSET + TAG_LENGTH;
 	var MAX_UINT32 = 4294967295;
+	/**
+	* @typedef {{
+	*   text: string,
+	*   utf8ByteLength: number,
+	*   masterSecretByteLength: number,
+	*   paddingByteLength: number
+	* }} TextEnvelopeInfo
+	*/
+	/**
+	* @param {unknown} value
+	*/
 	function ensureText(value) {
 		if (typeof value !== "string") throw new Slip39Error("The text master secret must be a string.");
 	}
+	/**
+	* @param {Uint8Array} output
+	* @param {number} offset
+	* @param {number} value
+	*/
 	function writeUint32BigEndian(output, offset, value) {
 		output[offset] = value >>> 24 & 255;
 		output[offset + 1] = value >>> 16 & 255;
 		output[offset + 2] = value >>> 8 & 255;
 		output[offset + 3] = value & 255;
 	}
+	/**
+	* @param {Uint8Array} input
+	* @param {number} offset
+	* @returns {number}
+	*/
 	function readUint32BigEndian(input, offset) {
 		return input[offset] * 16777216 + (input[offset + 1] << 16) + (input[offset + 2] << 8) + input[offset + 3];
 	}
+	/**
+	* @param {number} payloadLength
+	* @returns {number}
+	*/
 	function getPaddingLength(payloadLength) {
 		return payloadLength % 2;
 	}
+	/**
+	* @param {unknown} bytes
+	* @returns {bytes is Uint8Array}
+	*/
 	function hasMagic(bytes) {
 		if (Object.prototype.toString.call(bytes) !== "[object Uint8Array]") return false;
-		if (bytes.length < TEXT_MASTER_SECRET_MAGIC.length) return false;
-		for (let index = 0; index < TEXT_MASTER_SECRET_MAGIC.length; index += 1) if (bytes[index] !== TEXT_MASTER_SECRET_MAGIC[index]) return false;
+		const candidate = bytes;
+		if (candidate.length < TEXT_MASTER_SECRET_MAGIC.length) return false;
+		for (let index = 0; index < TEXT_MASTER_SECRET_MAGIC.length; index += 1) if (candidate[index] !== TEXT_MASTER_SECRET_MAGIC[index]) return false;
 		return true;
 	}
+	/**
+	* @param {Uint8Array} bytes
+	* @returns {Promise<Uint8Array>}
+	*/
 	async function computeEnvelopeTag(bytes) {
 		const buffer = new Uint8Array(bytes);
 		buffer.fill(0, TAG_OFFSET, TAG_OFFSET + TAG_LENGTH);
 		return (await sha256(buffer)).subarray(0, TAG_LENGTH);
 	}
+	/**
+	* @param {Uint8Array} bytes
+	* @returns {Promise<TextEnvelopeInfo | null>}
+	*/
 	async function parseTextMasterSecretEnvelope(bytes) {
 		if (!hasMagic(bytes) || bytes.length < PAYLOAD_OFFSET) return null;
 		if (bytes[VERSION_OFFSET] !== TEXT_MASTER_SECRET_VERSION) return null;
@@ -1853,6 +1939,10 @@ button:disabled {
 			return null;
 		}
 	}
+	/**
+	* @param {string} text
+	* @returns {Omit<TextEnvelopeInfo, "text">}
+	*/
 	function describeTextMasterSecret(text) {
 		ensureText(text);
 		const utf8ByteLength = TEXT_ENCODER.encode(text).length;
@@ -1864,6 +1954,10 @@ button:disabled {
 			paddingByteLength
 		};
 	}
+	/**
+	* @param {string} text
+	* @returns {Promise<Uint8Array>}
+	*/
 	async function encodeTextMasterSecret(text) {
 		ensureText(text);
 		const payload = TEXT_ENCODER.encode(text);
@@ -1879,9 +1973,17 @@ button:disabled {
 		validateMasterSecretBytes(output);
 		return output;
 	}
+	/**
+	* @param {Uint8Array} bytes
+	* @returns {Promise<string | null>}
+	*/
 	async function decodeTextMasterSecret(bytes) {
 		return (await parseTextMasterSecretEnvelope(bytes))?.text ?? null;
 	}
+	/**
+	* @param {Uint8Array} bytes
+	* @returns {Promise<boolean>}
+	*/
 	async function isTextMasterSecretEnvelope(bytes) {
 		return await parseTextMasterSecretEnvelope(bytes) !== null;
 	}
@@ -1923,6 +2025,10 @@ button:disabled {
 	});
 	//#endregion
 	//#region src/js/ui/clipboard.js
+	/**
+	* @param {string} text
+	* @returns {Promise<void>}
+	*/
 	async function copyText(text) {
 		if (location.protocol !== "file:" && globalThis.isSecureContext && navigator.clipboard?.writeText) try {
 			await navigator.clipboard.writeText(text);
@@ -1942,16 +2048,65 @@ button:disabled {
 	}
 	//#endregion
 	//#region src/js/ui/dom.js
+	/**
+	* @typedef {{
+	*   cryptoStatus: HTMLElement,
+	*   generateTab: HTMLButtonElement,
+	*   recoverTab: HTMLButtonElement,
+	*   generatePanel: HTMLElement,
+	*   recoverPanel: HTMLElement,
+	*   generateForm: HTMLFormElement,
+	*   recoverForm: HTMLFormElement,
+	*   secretInputLabel: HTMLLabelElement,
+	*   secretHexInput: HTMLTextAreaElement,
+	*   secretInputModes: HTMLInputElement[],
+	*   secretModeHint: HTMLElement,
+	*   secretBytes: HTMLElement,
+	*   secretTransform: HTMLElement,
+	*   generatePassphrase: HTMLInputElement,
+	*   recoverPassphrase: HTMLInputElement,
+	*   shareCount: HTMLInputElement,
+	*   threshold: HTMLInputElement,
+	*   sharesResult: HTMLElement,
+	*   shareList: HTMLOListElement,
+	*   recoveryScheme: HTMLElement,
+	*   recoveryMasterSecret: HTMLElement,
+	*   sharesInput: HTMLTextAreaElement,
+	*   recoverResult: HTMLElement,
+	*   recoveredTextBlock: HTMLElement,
+	*   recoveredText: HTMLTextAreaElement,
+	*   recoveredHexHeading: HTMLElement,
+	*   recoveredHexHelp: HTMLElement,
+	*   recoveredHex: HTMLTextAreaElement,
+	*   message: HTMLElement,
+	*   copyAllShares: HTMLButtonElement,
+	*   copyRecoveredText: HTMLButtonElement,
+	*   copyRecovered: HTMLButtonElement,
+	*   clearGenerate: HTMLButtonElement,
+	*   clearRecover: HTMLButtonElement
+	* }} UiElements
+	*/
+	/**
+	* @param {string} selector
+	* @returns {Element}
+	*/
 	function requiredElement(selector) {
 		const element = document.querySelector(selector);
 		if (!element) throw new Error(`Missing required element: ${selector}`);
 		return element;
 	}
+	/**
+	* @param {string} selector
+	* @returns {Element[]}
+	*/
 	function requiredElements(selector) {
 		const elements = [...document.querySelectorAll(selector)];
 		if (elements.length === 0) throw new Error(`Missing required elements: ${selector}`);
 		return elements;
 	}
+	/**
+	* @returns {UiElements}
+	*/
 	function getElements() {
 		return {
 			cryptoStatus: requiredElement("#cryptoStatus"),
@@ -1992,16 +2147,43 @@ button:disabled {
 	}
 	//#endregion
 	//#region src/js/ui/forms.js
+	/**
+	* @param {{ value: string }} input
+	* @param {string} label
+	* @returns {number}
+	*/
 	function parsePositiveInteger(input, label) {
 		const value = Number(input.value);
 		if (!Number.isInteger(value)) throw new Error(`${label} must be an integer.`);
 		return value;
 	}
+	/**
+	* @param {string} value
+	* @returns {string[]}
+	*/
 	function splitSharesInput(value) {
 		return value.split(/\n+/).map((line) => line.trim()).filter(Boolean);
 	}
 	//#endregion
 	//#region src/js/ui/recovery-output.js
+	/**
+	* @typedef {ReturnType<typeof import("./dom.js").getElements>} UiElements
+	* @typedef {{ bytesToHex(bytes: Uint8Array): string, decodeTextMasterSecret(bytes: Uint8Array): string | null | Promise<string | null> }} RecoveryCore
+	* @typedef {{
+	*   hex: string,
+	*   text: string,
+	*   hasText: boolean,
+	*   hexHeading: string,
+	*   hexHelpText: string,
+	*   message: string,
+	*   tone: "warning"
+	* }} RecoveryOutput
+	*/
+	/**
+	* @param {Uint8Array} recovered
+	* @param {RecoveryCore} core
+	* @returns {Promise<RecoveryOutput>}
+	*/
 	async function getRecoveryOutput(recovered, core) {
 		const text = await core.decodeTextMasterSecret(recovered);
 		const hex = core.bytesToHex(recovered);
@@ -2024,6 +2206,12 @@ button:disabled {
 			tone: "warning"
 		};
 	}
+	/**
+	* @param {UiElements} elements
+	* @param {Uint8Array} recovered
+	* @param {RecoveryCore} core
+	* @returns {Promise<RecoveryOutput>}
+	*/
 	async function renderRecoveryOutput(elements, recovered, core) {
 		const output = await getRecoveryOutput(recovered, core);
 		elements.recoveredTextBlock.hidden = !output.hasText;
@@ -2034,6 +2222,9 @@ button:disabled {
 		elements.recoverResult.hidden = false;
 		return output;
 	}
+	/**
+	* @param {UiElements} elements
+	*/
 	function clearRecoveryOutput(elements) {
 		elements.recoverResult.hidden = true;
 		elements.recoveredTextBlock.hidden = true;
@@ -2048,6 +2239,21 @@ button:disabled {
 		HEX: "hex",
 		TEXT: "text"
 	});
+	/**
+	* @typedef {"hex" | "text"} SecretInputMode
+	* @typedef {{ label: string, placeholder: string, helpText: string, modeHint: string, recoveryNote: string }} SecretInputModeConfig
+	* @typedef {{ utf8ByteLength: number, masterSecretByteLength: number, paddingByteLength: number }} TextMasterSecretDescription
+	* @typedef {{ text: string, tone: "" | "warning" | "error", helpText: string }} SecretInputStatus
+	* @typedef {{
+	*   MIN_STRENGTH_BITS: number,
+	*   bitsToBytes(bits: number): number,
+	*   compactHex(value: string): string,
+	*   describeTextMasterSecret(value: string): TextMasterSecretDescription,
+	*   encodeTextMasterSecret(value: string): unknown,
+	*   parseMasterSecretHex(value: string): unknown
+	* }} SecretInputCore
+	*/
+	/** @type {Readonly<Record<SecretInputMode, SecretInputModeConfig>>} */
 	var MODE_CONFIG = Object.freeze({
 		[SECRET_INPUT_MODES.HEX]: {
 			label: "Master secret hex",
@@ -2064,83 +2270,135 @@ button:disabled {
 			recoveryNote: "Text encoded as a SLIP39TXT v1 envelope; external tools recover envelope bytes as hex"
 		}
 	});
+	/**
+	* @param {unknown} mode
+	* @returns {asserts mode is SecretInputMode}
+	*/
 	function assertMode(mode) {
-		if (!Object.hasOwn(MODE_CONFIG, mode)) throw new Error(`Unsupported master secret input mode: ${mode}`);
+		if (mode !== SECRET_INPUT_MODES.HEX && mode !== SECRET_INPUT_MODES.TEXT) throw new Error(`Unsupported master secret input mode: ${mode}`);
 	}
+	/**
+	* @param {number} length
+	* @returns {string}
+	*/
 	function formatByteCount(length) {
 		return `${length} byte${length === 1 ? "" : "s"}`;
 	}
+	/**
+	* @param {number} length
+	* @param {string} label
+	* @returns {string}
+	*/
 	function formatLabeledByteCount(length, label) {
 		return `${length} ${label} byte${length === 1 ? "" : "s"}`;
 	}
+	/**
+	* @param {unknown} mode
+	* @returns {SecretInputModeConfig}
+	*/
 	function getSecretInputModeConfig(mode) {
 		assertMode(mode);
 		return MODE_CONFIG[mode];
 	}
+	/**
+	* @param {unknown} mode
+	* @param {string} value
+	* @param {SecretInputCore} core
+	* @returns {SecretInputStatus}
+	*/
 	function getSecretInputStatus(mode, value, core) {
-		assertMode(mode);
+		const config = getSecretInputModeConfig(mode);
 		if (mode === SECRET_INPUT_MODES.TEXT) try {
 			const info = core.describeTextMasterSecret(value);
 			return {
 				text: [formatLabeledByteCount(info.utf8ByteLength, "UTF-8"), formatLabeledByteCount(info.masterSecretByteLength, "SLIP-0039")].join(" -> "),
 				tone: "",
-				helpText: MODE_CONFIG[mode].helpText
+				helpText: config.helpText
 			};
 		} catch (error) {
 			return {
-				text: error.message,
+				text: error instanceof Error ? error.message : String(error),
 				tone: "error",
-				helpText: MODE_CONFIG[mode].helpText
+				helpText: config.helpText
 			};
 		}
 		const hex = core.compactHex(value);
 		if (hex.length === 0) return {
 			text: "0 bytes",
 			tone: "",
-			helpText: MODE_CONFIG[mode].helpText
+			helpText: config.helpText
 		};
 		if (/[^0-9a-f]/i.test(hex)) return {
 			text: "Only hex digits and whitespace",
 			tone: "error",
-			helpText: MODE_CONFIG[mode].helpText
+			helpText: config.helpText
 		};
 		if (hex.length % 2 !== 0) return {
 			text: "Odd hex digit count; fix intentionally",
 			tone: "error",
-			helpText: MODE_CONFIG[mode].helpText
+			helpText: config.helpText
 		};
 		const byteLength = hex.length / 2;
 		if (byteLength < core.bitsToBytes(core.MIN_STRENGTH_BITS)) return {
 			text: `${formatByteCount(byteLength)}; minimum is 16 bytes`,
 			tone: "warning",
-			helpText: MODE_CONFIG[mode].helpText
+			helpText: config.helpText
 		};
 		if (byteLength % 2 !== 0) return {
 			text: `${byteLength} bytes; byte length must be even; fix intentionally`,
 			tone: "error",
-			helpText: MODE_CONFIG[mode].helpText
+			helpText: config.helpText
 		};
 		return {
 			text: `${byteLength} bytes; normalized ${hex.length} hex digits`,
 			tone: "",
-			helpText: MODE_CONFIG[mode].helpText
+			helpText: config.helpText
 		};
 	}
+	/**
+	* @param {unknown} mode
+	* @param {string} value
+	* @param {SecretInputCore} core
+	* @returns {unknown}
+	*/
 	function parseSecretInput(mode, value, core) {
 		assertMode(mode);
 		return mode === SECRET_INPUT_MODES.TEXT ? core.encodeTextMasterSecret(value) : core.parseMasterSecretHex(value);
 	}
 	//#endregion
 	//#region src/js/ui/messages.js
+	/**
+	* @typedef {ReturnType<typeof import("./dom.js").getElements>} UiElements
+	*/
+	/**
+	* @param {UiElements} elements
+	* @param {string} text
+	* @param {string} [tone]
+	*/
 	function setMessage(elements, text, tone = "") {
 		elements.message.textContent = text;
 		elements.message.className = `message${tone ? ` is-${tone}` : ""}`;
 	}
+	/**
+	* @param {HTMLFormElement} form
+	* @param {boolean} busy
+	*/
 	function setBusy(form, busy) {
 		for (const button of form.querySelectorAll("button")) button.disabled = busy;
 	}
 	//#endregion
 	//#region src/js/ui/shares.js
+	/**
+	* @typedef {ReturnType<typeof import("./dom.js").getElements>} UiElements
+	* @typedef {(button: HTMLButtonElement, text: string, copiedLabel: string, statusMessage: string) => Promise<void>} CopyShareHandler
+	*/
+	/**
+	* @param {UiElements} elements
+	* @param {string[]} shares
+	* @param {number} threshold
+	* @param {number} shareCount
+	* @param {CopyShareHandler} copyShare
+	*/
 	function renderShares(elements, shares, threshold, shareCount, copyShare) {
 		elements.recoveryScheme.textContent = `Single group ${threshold}-of-${shareCount}`;
 		elements.shareList.replaceChildren();
@@ -2171,54 +2429,127 @@ button:disabled {
 		GENERATE: "generate",
 		RECOVER: "recover"
 	});
+	/**
+	* @typedef {"generate" | "recover"} TabMode
+	* @typedef {"hex" | "text"} SecretInputMode
+	* @typedef {{ pathname: string, search: string, hash: string }} LocationLike
+	*/
 	var SECRET_INPUT_QUERY_KEY = "input";
+	/**
+	* @param {unknown} value
+	* @returns {TabMode}
+	*/
 	function normalizeTabMode(value) {
 		return value === UI_TABS.RECOVER ? UI_TABS.RECOVER : UI_TABS.GENERATE;
 	}
+	/**
+	* @param {unknown} hash
+	* @returns {TabMode}
+	*/
 	function tabModeFromHash(hash) {
 		return String(hash).replace(/^#/, "") === UI_TABS.RECOVER ? UI_TABS.RECOVER : UI_TABS.GENERATE;
 	}
+	/**
+	* @param {unknown} mode
+	* @returns {string}
+	*/
 	function hashForTabMode(mode) {
 		return `#${normalizeTabMode(mode)}`;
 	}
+	/**
+	* @param {unknown} value
+	* @returns {SecretInputMode}
+	*/
 	function normalizeSecretInputMode(value) {
 		return value === "hex" ? "hex" : "text";
 	}
+	/**
+	* @param {unknown} search
+	* @returns {SecretInputMode}
+	*/
 	function secretInputModeFromSearch(search) {
 		return normalizeSecretInputMode(new URLSearchParams(String(search).replace(/^\?/, "")).get(SECRET_INPUT_QUERY_KEY));
 	}
+	/**
+	* @param {unknown} search
+	* @param {unknown} mode
+	* @returns {string}
+	*/
 	function searchForSecretInputMode(search, mode) {
 		const params = new URLSearchParams(String(search).replace(/^\?/, ""));
 		params.set(SECRET_INPUT_QUERY_KEY, normalizeSecretInputMode(mode));
 		const serialized = params.toString();
 		return serialized ? `?${serialized}` : "";
 	}
+	/**
+	* @param {LocationLike} locationLike
+	* @param {unknown} mode
+	* @returns {string}
+	*/
 	function hrefForSecretInputMode(locationLike, mode) {
 		return `${locationLike.pathname}${searchForSecretInputMode(locationLike.search, mode)}${locationLike.hash}`;
 	}
 	//#endregion
 	//#region src/js/ui/app-ui.js
 	var COPY_FEEDBACK_MS = 1400;
+	/**
+	* @typedef {import("./secret-input.js").SecretInputCore & import("./recovery-output.js").RecoveryCore & {
+	*   combineMnemonicsFlexible(mnemonics: string[], passphrase?: string): Promise<Uint8Array>,
+	*   generateMnemonics(threshold: number, shareCount: number, masterSecret: Uint8Array, passphrase?: string): Promise<string[]>,
+	*   hasRequiredCrypto(): boolean
+	* }} AppCore
+	* @typedef {ReturnType<typeof import("./dom.js").getElements>} UiElements
+	* @typedef {{ clearMessage?: boolean, syncHash?: boolean }} SetTabOptions
+	*/
+	/**
+	* @param {unknown} error
+	* @returns {string}
+	*/
+	function errorMessage(error) {
+		return error instanceof Error ? error.message : String(error);
+	}
+	/**
+	* @param {AppCore} core
+	*/
 	function startUi(core) {
 		const { combineMnemonicsFlexible, generateMnemonics, hasRequiredCrypto } = core;
 		const elements = getElements();
 		const tabs = [elements.generateTab, elements.recoverTab];
+		/** @type {WeakMap<HTMLButtonElement, ReturnType<typeof setTimeout>>} */
 		const copyFeedbackTimers = /* @__PURE__ */ new WeakMap();
+		/** @type {string[]} */
 		let currentShares = [];
+		/**
+		* @param {string} text
+		* @param {string} [tone]
+		*/
 		function setMessage$1(text, tone = "") {
 			setMessage(elements, text, tone);
 		}
+		/**
+		* @returns {import("./tabs.js").SecretInputMode}
+		*/
 		function selectedSecretMode() {
 			return normalizeSecretInputMode(elements.secretInputModes.find((input) => input.checked)?.value);
 		}
+		/**
+		* @param {unknown} mode
+		* @returns {import("./tabs.js").SecretInputMode}
+		*/
 		function setSelectedSecretMode(mode) {
 			const normalizedMode = normalizeSecretInputMode(mode);
 			for (const input of elements.secretInputModes) input.checked = input.value === normalizedMode;
 			return normalizedMode;
 		}
+		/**
+		* @param {unknown} mode
+		*/
 		function updateRecoveryNote(mode) {
 			elements.recoveryMasterSecret.textContent = getSecretInputModeConfig(mode).recoveryNote;
 		}
+		/**
+		* @param {unknown} mode
+		*/
 		function syncHashToTab(mode) {
 			const nextHash = hashForTabMode(mode);
 			if (globalThis.location.hash === nextHash) return;
@@ -2228,11 +2559,18 @@ button:disabled {
 			}
 			globalThis.location.hash = nextHash;
 		}
+		/**
+		* @param {unknown} mode
+		*/
 		function syncSearchToSecretMode(mode) {
 			const nextSearch = searchForSecretInputMode(globalThis.location.search, mode);
 			if (globalThis.location.search === nextSearch || !globalThis.history?.replaceState) return;
 			globalThis.history.replaceState(null, "", hrefForSecretInputMode(globalThis.location, mode));
 		}
+		/**
+		* @param {unknown} mode
+		* @param {SetTabOptions} [options]
+		*/
 		function setTab(mode, options = {}) {
 			const { clearMessage = true, syncHash = true } = options;
 			const generating = mode === UI_TABS.GENERATE;
@@ -2245,10 +2583,16 @@ button:disabled {
 			if (syncHash) syncHashToTab(generating ? UI_TABS.GENERATE : UI_TABS.RECOVER);
 			if (clearMessage) setMessage$1("");
 		}
+		/**
+		* @param {number} index
+		*/
 		function focusTab(index) {
 			tabs[index].focus();
 			tabs[index].click();
 		}
+		/**
+		* @param {KeyboardEvent} event
+		*/
 		function handleTabKeydown(event) {
 			if (![
 				"ArrowLeft",
@@ -2291,6 +2635,13 @@ button:disabled {
 			elements.shareList.replaceChildren();
 			currentShares = [];
 		}
+		/**
+		* @param {HTMLButtonElement} button
+		* @param {string} text
+		* @param {string} copiedLabel
+		* @param {string} statusMessage
+		* @returns {Promise<void>}
+		*/
 		async function copyWithFeedback(button, text, copiedLabel, statusMessage) {
 			const originalLabel = button.dataset.originalLabel || button.textContent;
 			button.dataset.originalLabel = originalLabel;
@@ -2304,7 +2655,7 @@ button:disabled {
 			button.textContent = copiedLabel;
 			button.classList.add("is-copied");
 			clearTimeout(copyFeedbackTimers.get(button));
-			copyFeedbackTimers.set(button, setTimeout(() => {
+			copyFeedbackTimers.set(button, globalThis.setTimeout(() => {
 				button.textContent = originalLabel;
 				button.classList.remove("is-copied");
 				copyFeedbackTimers.delete(button);
@@ -2312,8 +2663,12 @@ button:disabled {
 		}
 		elements.generateTab.addEventListener("click", () => setTab(UI_TABS.GENERATE));
 		elements.recoverTab.addEventListener("click", () => setTab(UI_TABS.RECOVER));
-		elements.generateTab.addEventListener("keydown", handleTabKeydown);
-		elements.recoverTab.addEventListener("keydown", handleTabKeydown);
+		elements.generateTab.addEventListener("keydown", (event) => {
+			handleTabKeydown(event);
+		});
+		elements.recoverTab.addEventListener("keydown", (event) => {
+			handleTabKeydown(event);
+		});
 		globalThis.addEventListener("hashchange", () => {
 			setTab(tabModeFromHash(globalThis.location.hash), { syncHash: false });
 		});
@@ -2334,7 +2689,7 @@ button:disabled {
 				setMessage$1("Shares generated. Store each share separately.", "ok");
 			} catch (error) {
 				elements.sharesResult.hidden = true;
-				setMessage$1(error.message, "error");
+				setMessage$1(errorMessage(error), "error");
 			} finally {
 				setBusy(elements.generateForm, false);
 			}
@@ -2348,7 +2703,7 @@ button:disabled {
 				setMessage$1(output.message, output.tone);
 			} catch (error) {
 				clearRecoveryOutput(elements);
-				setMessage$1(error.message, "error");
+				setMessage$1(errorMessage(error), "error");
 			} finally {
 				setBusy(elements.recoverForm, false);
 			}

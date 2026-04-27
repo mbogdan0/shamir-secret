@@ -7,10 +7,18 @@ import {
 } from "./constants.js";
 import { asciiToBytes } from "./utils.js";
 
+/**
+ * @param {boolean} extendable
+ * @returns {string}
+ */
 export function customizationString(extendable) {
   return extendable ? CUSTOMIZATION_STRING_EXTENDABLE : CUSTOMIZATION_STRING_ORIG;
 }
 
+/**
+ * @param {number[]} values
+ * @returns {number}
+ */
 export function polymod(values) {
   let chk = 1;
   for (const value of values) {
@@ -25,6 +33,11 @@ export function polymod(values) {
   return chk;
 }
 
+/**
+ * @param {number[]} data
+ * @param {string} customization
+ * @returns {number[]}
+ */
 export function createChecksum(data, customization) {
   const values = [
     ...asciiToBytes(customization),
@@ -35,6 +48,11 @@ export function createChecksum(data, customization) {
   return [2, 1, 0].map((index) => (checksum >> (RADIX_BITS * index)) & 1023);
 }
 
+/**
+ * @param {number[]} data
+ * @param {string} customization
+ * @returns {boolean}
+ */
 export function verifyChecksum(data, customization) {
   return polymod([...asciiToBytes(customization), ...data]) === 1;
 }

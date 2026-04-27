@@ -21,6 +21,17 @@ import {
 } from "./utils.js";
 
 export class Share {
+  /**
+   * @param {number} identifier
+   * @param {boolean} extendable
+   * @param {number} iterationExponent
+   * @param {number} groupIndex
+   * @param {number} groupThreshold
+   * @param {number} groupCount
+   * @param {number} index
+   * @param {number} memberThreshold
+   * @param {Uint8Array} value
+   */
   constructor(
     identifier,
     extendable,
@@ -32,17 +43,29 @@ export class Share {
     memberThreshold,
     value
   ) {
+    /** @type {number} */
     this.identifier = identifier;
+    /** @type {boolean} */
     this.extendable = extendable;
+    /** @type {number} */
     this.iterationExponent = iterationExponent;
+    /** @type {number} */
     this.groupIndex = groupIndex;
+    /** @type {number} */
     this.groupThreshold = groupThreshold;
+    /** @type {number} */
     this.groupCount = groupCount;
+    /** @type {number} */
     this.index = index;
+    /** @type {number} */
     this.memberThreshold = memberThreshold;
+    /** @type {Uint8Array} */
     this.value = new Uint8Array(value);
   }
 
+  /**
+   * @returns {string}
+   */
   commonKey() {
     return [
       this.identifier,
@@ -53,6 +76,9 @@ export class Share {
     ].join(":");
   }
 
+  /**
+   * @returns {string}
+   */
   groupKey() {
     return [
       this.identifier,
@@ -65,6 +91,9 @@ export class Share {
     ].join(":");
   }
 
+  /**
+   * @returns {number[]}
+   */
   encodeIdExp() {
     const value =
       (BigInt(this.identifier) << 5n) |
@@ -73,6 +102,9 @@ export class Share {
     return intToIndices(value, ID_EXP_LENGTH_WORDS);
   }
 
+  /**
+   * @returns {number[]}
+   */
   encodeShareParams() {
     let value = BigInt(this.groupIndex);
     value = (value << 4n) | BigInt(this.groupThreshold - 1);
@@ -82,6 +114,9 @@ export class Share {
     return intToIndices(value, 2);
   }
 
+  /**
+   * @returns {string[]}
+   */
   words() {
     const valueWordCount = bitsToWords(this.value.length * 8);
     const shareData = [
@@ -93,10 +128,17 @@ export class Share {
     return indicesToWords([...shareData, ...checksum]);
   }
 
+  /**
+   * @returns {string}
+   */
   toMnemonic() {
     return this.words().join(" ");
   }
 
+  /**
+   * @param {string} mnemonic
+   * @returns {Share}
+   */
   static fromMnemonic(mnemonic) {
     const mnemonicData = mnemonicToIndices(mnemonic);
 

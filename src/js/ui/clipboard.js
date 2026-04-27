@@ -1,3 +1,7 @@
+/**
+ * @param {string} text
+ * @returns {Promise<void>}
+ */
 export async function copyText(text) {
   const canUseClipboardApi =
     location.protocol !== "file:" && globalThis.isSecureContext && navigator.clipboard?.writeText;

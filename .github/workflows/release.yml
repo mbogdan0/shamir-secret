@@ -1,0 +1,85 @@
+name: Release Artifacts
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Verify committed build artifact
+        run: npm run verify:build
+
+      - name: Test
+        run: npm test
+
+      - name: Verify zero runtime dependencies
+        run: npm run verify:runtime-deps
+
+      - name: Verify runtime source policy
+        run: npm run verify:source-policy
+
+      - name: Audit dependencies
+        run: npm run audit
+
+      - name: Audit production dependency surface
+        run: npm run audit:prod
+
+      - name: Verify npm registry signatures
+        run: npm run audit:signatures
+
+      - name: Build release artifact
+        run: npm run build
+
+      - name: Generate SHA-256 checksum
+        run: shasum -a 256 dist/index.html > dist/index.html.sha256
+
+      - name: Generate CycloneDX SBOM
+        run: npm run --silent sbom > dist/sbom.cdx.json
+
+      - name: Validate SBOM
+        run: |
+          node -e 'const fs = require("node:fs"); const sbom = JSON.parse(fs.readFileSync("dist/sbom.cdx.json", "utf8")); if (sbom.bomFormat !== "CycloneDX" || !Array.isArray(sbom.components)) throw new Error("Invalid CycloneDX SBOM");'
+
+      - name: Create or update GitHub release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG_NAME" >/dev/null 2>&1 || gh release create "$TAG_NAME" --title "$TAG_NAME" --notes "Automated release artifacts for $TAG_NAME."
+          gh release upload "$TAG_NAME" dist/index.html dist/index.html.sha256 dist/sbom.cdx.json --clobber
+
+      - name: Generate artifact attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/*

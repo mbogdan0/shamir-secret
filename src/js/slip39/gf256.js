@@ -1,6 +1,13 @@
 import { Slip39Error } from "./errors.js";
 import { modulo } from "./utils.js";
 
+/**
+ * @typedef {{ x: number, data: Uint8Array }} RawShare
+ */
+
+/**
+ * @returns {{ exp: number[], log: number[] }}
+ */
 function precomputeExpLog() {
   const exp = new Array(255).fill(0);
   const log = new Array(256).fill(0);
@@ -18,6 +25,11 @@ function precomputeExpLog() {
 
 const { exp: EXP_TABLE, log: LOG_TABLE } = precomputeExpLog();
 
+/**
+ * @param {number} left
+ * @param {number} right
+ * @returns {number}
+ */
 export function gfMultiply(left, right) {
   if (left === 0 || right === 0) {
     return 0;
@@ -25,6 +37,11 @@ export function gfMultiply(left, right) {
   return EXP_TABLE[(LOG_TABLE[left] + LOG_TABLE[right]) % 255];
 }
 
+/**
+ * @param {RawShare[]} shares
+ * @param {number} x
+ * @returns {Uint8Array}
+ */
 export function interpolate(shares, x) {
   const seen = new Set();
   const lengths = new Set();
@@ -45,7 +62,7 @@ export function interpolate(shares, x) {
     }
   }
 
-  const length = [...lengths][0];
+  const [length] = lengths;
   const logProduct = shares.reduce((sum, share) => sum + LOG_TABLE[share.x ^ x], 0);
   const result = new Uint8Array(length);
 

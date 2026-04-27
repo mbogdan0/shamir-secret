@@ -1,17 +1,16 @@
-name: Deploy GitHub Pages
+name: CI
 
 on:
+  pull_request:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -26,9 +25,6 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v6
 
       - name: Install dependencies
         run: npm ci
@@ -69,19 +65,3 @@ jobs:
       - name: Validate SBOM
         run: |
           node -e 'const fs = require("node:fs"); const sbom = JSON.parse(fs.readFileSync("sbom.cdx.json", "utf8")); if (sbom.bomFormat !== "CycloneDX" || !Array.isArray(sbom.components)) throw new Error("Invalid CycloneDX SBOM");'
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: dist
-
-  deploy:
-    needs: quality
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5

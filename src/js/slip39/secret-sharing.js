@@ -5,10 +5,25 @@ import { interpolate } from "./gf256.js";
 import { bytesEqual, concatBytes, zeroize } from "./utils.js";
 import { validateShareParameters } from "./validation.js";
 
+/**
+ * @typedef {{ x: number, data: Uint8Array }} RawShare
+ */
+
+/**
+ * @param {Uint8Array} randomPart
+ * @param {Uint8Array} sharedSecret
+ * @returns {Promise<Uint8Array>}
+ */
 export async function createDigest(randomPart, sharedSecret) {
   return (await hmacSha256(randomPart, sharedSecret)).slice(0, DIGEST_LENGTH_BYTES);
 }
 
+/**
+ * @param {number} threshold
+ * @param {number} shareCount
+ * @param {Uint8Array} sharedSecret
+ * @returns {Promise<RawShare[]>}
+ */
 export async function splitSecret(threshold, shareCount, sharedSecret) {
   validateShareParameters(threshold, shareCount);
   if (Object.prototype.toString.call(sharedSecret) !== "[object Uint8Array]") {
@@ -48,6 +63,11 @@ export async function splitSecret(threshold, shareCount, sharedSecret) {
   return shares;
 }
 
+/**
+ * @param {number} threshold
+ * @param {RawShare[]} shares
+ * @returns {Promise<Uint8Array>}
+ */
 export async function recoverSecret(threshold, shares) {
   if (threshold === 1) {
     return new Uint8Array(shares[0].data);

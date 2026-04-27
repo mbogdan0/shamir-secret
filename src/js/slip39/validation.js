@@ -2,6 +2,10 @@ import { ID_LENGTH_BITS, MAX_SHARE_COUNT, MIN_STRENGTH_BITS } from "./constants.
 import { Slip39Error } from "./errors.js";
 import { asciiToBytes } from "./utils.js";
 
+/**
+ * @param {string} passphrase
+ * @returns {Uint8Array}
+ */
 export function validatePassphrase(passphrase) {
   for (let index = 0; index < passphrase.length; index += 1) {
     const codePoint = passphrase.charCodeAt(index);
@@ -12,12 +16,18 @@ export function validatePassphrase(passphrase) {
   return asciiToBytes(passphrase);
 }
 
+/**
+ * @param {number} identifier
+ */
 export function validateIdentifier(identifier) {
   if (!Number.isInteger(identifier) || identifier < 0 || identifier >= 1 << ID_LENGTH_BITS) {
     throw new Slip39Error("The SLIP-0039 identifier must be an integer from 0 to 32767.");
   }
 }
 
+/**
+ * @param {Uint8Array} masterSecret
+ */
 export function validateMasterSecretBytes(masterSecret) {
   if (Object.prototype.toString.call(masterSecret) !== "[object Uint8Array]") {
     throw new Slip39Error("The master secret must be bytes.");
@@ -32,6 +42,10 @@ export function validateMasterSecretBytes(masterSecret) {
   }
 }
 
+/**
+ * @param {number} threshold
+ * @param {number} shareCount
+ */
 export function validateShareParameters(threshold, shareCount) {
   if (!Number.isInteger(threshold) || threshold < 1) {
     throw new Slip39Error("Threshold must be a positive integer.");
@@ -47,6 +61,10 @@ export function validateShareParameters(threshold, shareCount) {
   }
 }
 
+/**
+ * @param {number} threshold
+ * @param {number} shareCount
+ */
 export function validateSingleGroupParameters(threshold, shareCount) {
   validateShareParameters(threshold, shareCount);
   if (threshold === 1 && shareCount > 1) {
@@ -54,6 +72,9 @@ export function validateSingleGroupParameters(threshold, shareCount) {
   }
 }
 
+/**
+ * @param {number} iterationExponent
+ */
 export function validateIterationExponent(iterationExponent) {
   if (!Number.isInteger(iterationExponent) || iterationExponent < 0 || iterationExponent > 15) {
     throw new Slip39Error("Iteration exponent must be an integer from 0 to 15.");

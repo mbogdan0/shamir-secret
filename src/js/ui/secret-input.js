@@ -1,8 +1,26 @@
-export const SECRET_INPUT_MODES = Object.freeze({
-  HEX: "hex",
-  TEXT: "text"
-});
+export const SECRET_INPUT_MODES = /** @type {{ readonly HEX: "hex", readonly TEXT: "text" }} */ (
+  Object.freeze({
+    HEX: "hex",
+    TEXT: "text"
+  })
+);
 
+/**
+ * @typedef {"hex" | "text"} SecretInputMode
+ * @typedef {{ label: string, placeholder: string, helpText: string, modeHint: string, recoveryNote: string }} SecretInputModeConfig
+ * @typedef {{ utf8ByteLength: number, masterSecretByteLength: number, paddingByteLength: number }} TextMasterSecretDescription
+ * @typedef {{ text: string, tone: "" | "warning" | "error", helpText: string }} SecretInputStatus
+ * @typedef {{
+ *   MIN_STRENGTH_BITS: number,
+ *   bitsToBytes(bits: number): number,
+ *   compactHex(value: string): string,
+ *   describeTextMasterSecret(value: string): TextMasterSecretDescription,
+ *   encodeTextMasterSecret(value: string): unknown,
+ *   parseMasterSecretHex(value: string): unknown
+ * }} SecretInputCore
+ */
+
+/** @type {Readonly<Record<SecretInputMode, SecretInputModeConfig>>} */
 const MODE_CONFIG = Object.freeze({
   [SECRET_INPUT_MODES.HEX]: {
     label: "Master secret hex",
@@ -21,27 +39,50 @@ const MODE_CONFIG = Object.freeze({
   }
 });
 
+/**
+ * @param {unknown} mode
+ * @returns {asserts mode is SecretInputMode}
+ */
 function assertMode(mode) {
-  if (!Object.hasOwn(MODE_CONFIG, mode)) {
+  if (mode !== SECRET_INPUT_MODES.HEX && mode !== SECRET_INPUT_MODES.TEXT) {
     throw new Error(`Unsupported master secret input mode: ${mode}`);
   }
 }
 
+/**
+ * @param {number} length
+ * @returns {string}
+ */
 function formatByteCount(length) {
   return `${length} byte${length === 1 ? "" : "s"}`;
 }
 
+/**
+ * @param {number} length
+ * @param {string} label
+ * @returns {string}
+ */
 function formatLabeledByteCount(length, label) {
   return `${length} ${label} byte${length === 1 ? "" : "s"}`;
 }
 
+/**
+ * @param {unknown} mode
+ * @returns {SecretInputModeConfig}
+ */
 export function getSecretInputModeConfig(mode) {
   assertMode(mode);
   return MODE_CONFIG[mode];
 }
 
+/**
+ * @param {unknown} mode
+ * @param {string} value
+ * @param {SecretInputCore} core
+ * @returns {SecretInputStatus}
+ */
 export function getSecretInputStatus(mode, value, core) {
-  assertMode(mode);
+  const config = getSecretInputModeConfig(mode);
 
   if (mode === SECRET_INPUT_MODES.TEXT) {
     try {
@@ -52,33 +93,33 @@ export function getSecretInputStatus(mode, value, core) {
           formatLabeledByteCount(info.masterSecretByteLength, "SLIP-0039")
         ].join(" -> "),
         tone: "",
-        helpText: MODE_CONFIG[mode].helpText
+        helpText: config.helpText
       };
     } catch (error) {
       return {
-        text: error.message,
+        text: error instanceof Error ? error.message : String(error),
         tone: "error",
-        helpText: MODE_CONFIG[mode].helpText
+        helpText: config.helpText
       };
     }
   }
 
   const hex = core.compactHex(value);
   if (hex.length === 0) {
-    return { text: "0 bytes", tone: "", helpText: MODE_CONFIG[mode].helpText };
+    return { text: "0 bytes", tone: "", helpText: config.helpText };
   }
   if (/[^0-9a-f]/i.test(hex)) {
     return {
       text: "Only hex digits and whitespace",
       tone: "error",
-      helpText: MODE_CONFIG[mode].helpText
+      helpText: config.helpText
     };
   }
   if (hex.length % 2 !== 0) {
     return {
       text: "Odd hex digit count; fix intentionally",
       tone: "error",
-      helpText: MODE_CONFIG[mode].helpText
+      helpText: config.helpText
     };
   }
 
@@ -87,24 +128,30 @@ export function getSecretInputStatus(mode, value, core) {
     return {
       text: `${formatByteCount(byteLength)}; minimum is 16 bytes`,
       tone: "warning",
-      helpText: MODE_CONFIG[mode].helpText
+      helpText: config.helpText
     };
   }
   if (byteLength % 2 !== 0) {
     return {
       text: `${byteLength} bytes; byte length must be even; fix intentionally`,
       tone: "error",
-      helpText: MODE_CONFIG[mode].helpText
+      helpText: config.helpText
     };
   }
 
   return {
     text: `${byteLength} bytes; normalized ${hex.length} hex digits`,
     tone: "",
-    helpText: MODE_CONFIG[mode].helpText
+    helpText: config.helpText
   };
 }
 
+/**
+ * @param {unknown} mode
+ * @param {string} value
+ * @param {SecretInputCore} core
+ * @returns {unknown}
+ */
 export function parseSecretInput(mode, value, core) {
   assertMode(mode);
   return mode === SECRET_INPUT_MODES.TEXT

@@ -1,3 +1,15 @@
+/**
+ * @typedef {ReturnType<typeof import("./dom.js").getElements>} UiElements
+ * @typedef {(button: HTMLButtonElement, text: string, copiedLabel: string, statusMessage: string) => Promise<void>} CopyShareHandler
+ */
+
+/**
+ * @param {UiElements} elements
+ * @param {string[]} shares
+ * @param {number} threshold
+ * @param {number} shareCount
+ * @param {CopyShareHandler} copyShare
+ */
 export function renderShares(elements, shares, threshold, shareCount, copyShare) {
   elements.recoveryScheme.textContent = `Single group ${threshold}-of-${shareCount}`;
   elements.shareList.replaceChildren();

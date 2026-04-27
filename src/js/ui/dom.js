@@ -1,3 +1,46 @@
+/**
+ * @typedef {{
+ *   cryptoStatus: HTMLElement,
+ *   generateTab: HTMLButtonElement,
+ *   recoverTab: HTMLButtonElement,
+ *   generatePanel: HTMLElement,
+ *   recoverPanel: HTMLElement,
+ *   generateForm: HTMLFormElement,
+ *   recoverForm: HTMLFormElement,
+ *   secretInputLabel: HTMLLabelElement,
+ *   secretHexInput: HTMLTextAreaElement,
+ *   secretInputModes: HTMLInputElement[],
+ *   secretModeHint: HTMLElement,
+ *   secretBytes: HTMLElement,
+ *   secretTransform: HTMLElement,
+ *   generatePassphrase: HTMLInputElement,
+ *   recoverPassphrase: HTMLInputElement,
+ *   shareCount: HTMLInputElement,
+ *   threshold: HTMLInputElement,
+ *   sharesResult: HTMLElement,
+ *   shareList: HTMLOListElement,
+ *   recoveryScheme: HTMLElement,
+ *   recoveryMasterSecret: HTMLElement,
+ *   sharesInput: HTMLTextAreaElement,
+ *   recoverResult: HTMLElement,
+ *   recoveredTextBlock: HTMLElement,
+ *   recoveredText: HTMLTextAreaElement,
+ *   recoveredHexHeading: HTMLElement,
+ *   recoveredHexHelp: HTMLElement,
+ *   recoveredHex: HTMLTextAreaElement,
+ *   message: HTMLElement,
+ *   copyAllShares: HTMLButtonElement,
+ *   copyRecoveredText: HTMLButtonElement,
+ *   copyRecovered: HTMLButtonElement,
+ *   clearGenerate: HTMLButtonElement,
+ *   clearRecover: HTMLButtonElement
+ * }} UiElements
+ */
+
+/**
+ * @param {string} selector
+ * @returns {Element}
+ */
 function requiredElement(selector) {
   const element = document.querySelector(selector);
   if (!element) {
@@ -6,6 +49,10 @@ function requiredElement(selector) {
   return element;
 }
 
+/**
+ * @param {string} selector
+ * @returns {Element[]}
+ */
 function requiredElements(selector) {
   const elements = [...document.querySelectorAll(selector)];
   if (elements.length === 0) {
@@ -14,41 +61,46 @@ function requiredElements(selector) {
   return elements;
 }
 
+/**
+ * @returns {UiElements}
+ */
 export function getElements() {
   return {
-    cryptoStatus: requiredElement("#cryptoStatus"),
-    generateTab: requiredElement("#generateTab"),
-    recoverTab: requiredElement("#recoverTab"),
-    generatePanel: requiredElement("#generatePanel"),
-    recoverPanel: requiredElement("#recoverPanel"),
-    generateForm: requiredElement("#generateForm"),
-    recoverForm: requiredElement("#recoverForm"),
-    secretInputLabel: requiredElement("#secretInputLabel"),
-    secretHexInput: requiredElement("#secretHexInput"),
-    secretInputModes: requiredElements("input[name='secretInputMode']"),
-    secretModeHint: requiredElement("#secretModeHint"),
-    secretBytes: requiredElement("#secretBytes"),
-    secretTransform: requiredElement("#secretTransform"),
-    generatePassphrase: requiredElement("#generatePassphrase"),
-    recoverPassphrase: requiredElement("#recoverPassphrase"),
-    shareCount: requiredElement("#shareCount"),
-    threshold: requiredElement("#threshold"),
-    sharesResult: requiredElement("#sharesResult"),
-    shareList: requiredElement("#shareList"),
-    recoveryScheme: requiredElement("#recoveryScheme"),
-    recoveryMasterSecret: requiredElement("#recoveryMasterSecret"),
-    sharesInput: requiredElement("#sharesInput"),
-    recoverResult: requiredElement("#recoverResult"),
-    recoveredTextBlock: requiredElement("#recoveredTextBlock"),
-    recoveredText: requiredElement("#recoveredText"),
-    recoveredHexHeading: requiredElement("#recoveredHexHeading"),
-    recoveredHexHelp: requiredElement("#recoveredHexHelp"),
-    recoveredHex: requiredElement("#recoveredHex"),
-    message: requiredElement("#message"),
-    copyAllShares: requiredElement("#copyAllShares"),
-    copyRecoveredText: requiredElement("#copyRecoveredText"),
-    copyRecovered: requiredElement("#copyRecovered"),
-    clearGenerate: requiredElement("#clearGenerate"),
-    clearRecover: requiredElement("#clearRecover")
+    cryptoStatus: /** @type {HTMLElement} */ (requiredElement("#cryptoStatus")),
+    generateTab: /** @type {HTMLButtonElement} */ (requiredElement("#generateTab")),
+    recoverTab: /** @type {HTMLButtonElement} */ (requiredElement("#recoverTab")),
+    generatePanel: /** @type {HTMLElement} */ (requiredElement("#generatePanel")),
+    recoverPanel: /** @type {HTMLElement} */ (requiredElement("#recoverPanel")),
+    generateForm: /** @type {HTMLFormElement} */ (requiredElement("#generateForm")),
+    recoverForm: /** @type {HTMLFormElement} */ (requiredElement("#recoverForm")),
+    secretInputLabel: /** @type {HTMLLabelElement} */ (requiredElement("#secretInputLabel")),
+    secretHexInput: /** @type {HTMLTextAreaElement} */ (requiredElement("#secretHexInput")),
+    secretInputModes: /** @type {HTMLInputElement[]} */ (
+      requiredElements("input[name='secretInputMode']")
+    ),
+    secretModeHint: /** @type {HTMLElement} */ (requiredElement("#secretModeHint")),
+    secretBytes: /** @type {HTMLElement} */ (requiredElement("#secretBytes")),
+    secretTransform: /** @type {HTMLElement} */ (requiredElement("#secretTransform")),
+    generatePassphrase: /** @type {HTMLInputElement} */ (requiredElement("#generatePassphrase")),
+    recoverPassphrase: /** @type {HTMLInputElement} */ (requiredElement("#recoverPassphrase")),
+    shareCount: /** @type {HTMLInputElement} */ (requiredElement("#shareCount")),
+    threshold: /** @type {HTMLInputElement} */ (requiredElement("#threshold")),
+    sharesResult: /** @type {HTMLElement} */ (requiredElement("#sharesResult")),
+    shareList: /** @type {HTMLOListElement} */ (requiredElement("#shareList")),
+    recoveryScheme: /** @type {HTMLElement} */ (requiredElement("#recoveryScheme")),
+    recoveryMasterSecret: /** @type {HTMLElement} */ (requiredElement("#recoveryMasterSecret")),
+    sharesInput: /** @type {HTMLTextAreaElement} */ (requiredElement("#sharesInput")),
+    recoverResult: /** @type {HTMLElement} */ (requiredElement("#recoverResult")),
+    recoveredTextBlock: /** @type {HTMLElement} */ (requiredElement("#recoveredTextBlock")),
+    recoveredText: /** @type {HTMLTextAreaElement} */ (requiredElement("#recoveredText")),
+    recoveredHexHeading: /** @type {HTMLElement} */ (requiredElement("#recoveredHexHeading")),
+    recoveredHexHelp: /** @type {HTMLElement} */ (requiredElement("#recoveredHexHelp")),
+    recoveredHex: /** @type {HTMLTextAreaElement} */ (requiredElement("#recoveredHex")),
+    message: /** @type {HTMLElement} */ (requiredElement("#message")),
+    copyAllShares: /** @type {HTMLButtonElement} */ (requiredElement("#copyAllShares")),
+    copyRecoveredText: /** @type {HTMLButtonElement} */ (requiredElement("#copyRecoveredText")),
+    copyRecovered: /** @type {HTMLButtonElement} */ (requiredElement("#copyRecovered")),
+    clearGenerate: /** @type {HTMLButtonElement} */ (requiredElement("#clearGenerate")),
+    clearRecover: /** @type {HTMLButtonElement} */ (requiredElement("#clearRecover"))
   };
 }

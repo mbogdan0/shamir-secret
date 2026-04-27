@@ -14,12 +14,29 @@ const TAG_LENGTH = 16;
 const PAYLOAD_OFFSET = TAG_OFFSET + TAG_LENGTH;
 const MAX_UINT32 = 0xffffffff;
 
+/**
+ * @typedef {{
+ *   text: string,
+ *   utf8ByteLength: number,
+ *   masterSecretByteLength: number,
+ *   paddingByteLength: number
+ * }} TextEnvelopeInfo
+ */
+
+/**
+ * @param {unknown} value
+ */
 function ensureText(value) {
   if (typeof value !== "string") {
     throw new Slip39Error("The text master secret must be a string.");
   }
 }
 
+/**
+ * @param {Uint8Array} output
+ * @param {number} offset
+ * @param {number} value
+ */
 function writeUint32BigEndian(output, offset, value) {
   output[offset] = (value >>> 24) & 0xff;
   output[offset + 1] = (value >>> 16) & 0xff;
@@ -27,6 +44,11 @@ function writeUint32BigEndian(output, offset, value) {
   output[offset + 3] = value & 0xff;
 }
 
+/**
+ * @param {Uint8Array} input
+ * @param {number} offset
+ * @returns {number}
+ */
 function readUint32BigEndian(input, offset) {
   return (
     input[offset] * 0x1000000 +
@@ -36,25 +58,38 @@ function readUint32BigEndian(input, offset) {
   );
 }
 
+/**
+ * @param {number} payloadLength
+ * @returns {number}
+ */
 function getPaddingLength(payloadLength) {
   return payloadLength % 2;
 }
 
+/**
+ * @param {unknown} bytes
+ * @returns {bytes is Uint8Array}
+ */
 function hasMagic(bytes) {
   if (Object.prototype.toString.call(bytes) !== "[object Uint8Array]") {
     return false;
   }
-  if (bytes.length < TEXT_MASTER_SECRET_MAGIC.length) {
+  const candidate = /** @type {Uint8Array} */ (bytes);
+  if (candidate.length < TEXT_MASTER_SECRET_MAGIC.length) {
     return false;
   }
   for (let index = 0; index < TEXT_MASTER_SECRET_MAGIC.length; index += 1) {
-    if (bytes[index] !== TEXT_MASTER_SECRET_MAGIC[index]) {
+    if (candidate[index] !== TEXT_MASTER_SECRET_MAGIC[index]) {
       return false;
     }
   }
   return true;
 }
 
+/**
+ * @param {Uint8Array} bytes
+ * @returns {Promise<Uint8Array>}
+ */
 async function computeEnvelopeTag(bytes) {
   const buffer = new Uint8Array(bytes);
   buffer.fill(0, TAG_OFFSET, TAG_OFFSET + TAG_LENGTH);
@@ -62,6 +97,10 @@ async function computeEnvelopeTag(bytes) {
   return digest.subarray(0, TAG_LENGTH);
 }
 
+/**
+ * @param {Uint8Array} bytes
+ * @returns {Promise<TextEnvelopeInfo | null>}
+ */
 async function parseTextMasterSecretEnvelope(bytes) {
   if (!hasMagic(bytes) || bytes.length < PAYLOAD_OFFSET) {
     return null;
@@ -99,6 +138,10 @@ async function parseTextMasterSecretEnvelope(bytes) {
   }
 }
 
+/**
+ * @param {string} text
+ * @returns {Omit<TextEnvelopeInfo, "text">}
+ */
 export function describeTextMasterSecret(text) {
   ensureText(text);
   const utf8ByteLength = TEXT_ENCODER.encode(text).length;
@@ -113,6 +156,10 @@ export function describeTextMasterSecret(text) {
   };
 }
 
+/**
+ * @param {string} text
+ * @returns {Promise<Uint8Array>}
+ */
 export async function encodeTextMasterSecret(text) {
   ensureText(text);
   const payload = TEXT_ENCODER.encode(text);
@@ -134,10 +181,18 @@ export async function encodeTextMasterSecret(text) {
   return output;
 }
 
+/**
+ * @param {Uint8Array} bytes
+ * @returns {Promise<string | null>}
+ */
 export async function decodeTextMasterSecret(bytes) {
   return (await parseTextMasterSecretEnvelope(bytes))?.text ?? null;
 }
 
+/**
+ * @param {Uint8Array} bytes
+ * @returns {Promise<boolean>}
+ */
 export async function isTextMasterSecretEnvelope(bytes) {
   return (await parseTextMasterSecretEnvelope(bytes)) !== null;
 }

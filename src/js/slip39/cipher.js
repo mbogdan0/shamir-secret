@@ -16,6 +16,14 @@ import {
   zeroize
 } from "./utils.js";
 
+/**
+ * @param {number} index
+ * @param {Uint8Array} passphraseBytes
+ * @param {number} iterationExponent
+ * @param {Uint8Array} salt
+ * @param {Uint8Array} right
+ * @returns {Promise<Uint8Array>}
+ */
 async function roundFunction(index, passphraseBytes, iterationExponent, salt, right) {
   return pbkdf2Sha256(
     concatBytes(new Uint8Array([index]), passphraseBytes),
@@ -25,6 +33,11 @@ async function roundFunction(index, passphraseBytes, iterationExponent, salt, ri
   );
 }
 
+/**
+ * @param {number} identifier
+ * @param {boolean} extendable
+ * @returns {Uint8Array}
+ */
 function saltFor(identifier, extendable) {
   if (extendable) {
     return new Uint8Array();
@@ -33,6 +46,14 @@ function saltFor(identifier, extendable) {
   return concatBytes(asciiToBytes(CUSTOMIZATION_STRING_ORIG), idBytes);
 }
 
+/**
+ * @param {Uint8Array} masterSecret
+ * @param {Uint8Array} passphraseBytes
+ * @param {number} iterationExponent
+ * @param {number} identifier
+ * @param {boolean} extendable
+ * @returns {Promise<Uint8Array>}
+ */
 export async function encrypt(
   masterSecret,
   passphraseBytes,
@@ -44,7 +65,9 @@ export async function encrypt(
     throw new Slip39Error("The master secret byte length must be even.");
   }
 
+  /** @type {Uint8Array<ArrayBufferLike>} */
   let left = masterSecret.slice(0, masterSecret.length / 2);
+  /** @type {Uint8Array<ArrayBufferLike>} */
   let right = masterSecret.slice(masterSecret.length / 2);
   const salt = saltFor(identifier, extendable);
 
@@ -64,6 +87,14 @@ export async function encrypt(
   }
 }
 
+/**
+ * @param {Uint8Array} encryptedMasterSecret
+ * @param {Uint8Array} passphraseBytes
+ * @param {number} iterationExponent
+ * @param {number} identifier
+ * @param {boolean} extendable
+ * @returns {Promise<Uint8Array>}
+ */
 export async function decrypt(
   encryptedMasterSecret,
   passphraseBytes,
@@ -75,7 +106,9 @@ export async function decrypt(
     throw new Slip39Error("The encrypted master secret byte length must be even.");
   }
 
+  /** @type {Uint8Array<ArrayBufferLike>} */
   let left = encryptedMasterSecret.slice(0, encryptedMasterSecret.length / 2);
+  /** @type {Uint8Array<ArrayBufferLike>} */
   let right = encryptedMasterSecret.slice(encryptedMasterSecret.length / 2);
   const salt = saltFor(identifier, extendable);
 
@@ -95,6 +128,9 @@ export async function decrypt(
   }
 }
 
+/**
+ * @returns {number}
+ */
 export function randomIdentifier() {
   return (
     Number(bytesToBigInt(randomBytes(bitsToBytes(ID_LENGTH_BITS)))) & ((1 << ID_LENGTH_BITS) - 1)

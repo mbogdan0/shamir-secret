@@ -22,23 +22,57 @@ import {
 
 const COPY_FEEDBACK_MS = 1400;
 
+/**
+ * @typedef {import("./secret-input.js").SecretInputCore & import("./recovery-output.js").RecoveryCore & {
+ *   combineMnemonicsFlexible(mnemonics: string[], passphrase?: string): Promise<Uint8Array>,
+ *   generateMnemonics(threshold: number, shareCount: number, masterSecret: Uint8Array, passphrase?: string): Promise<string[]>,
+ *   hasRequiredCrypto(): boolean
+ * }} AppCore
+ * @typedef {ReturnType<typeof import("./dom.js").getElements>} UiElements
+ * @typedef {{ clearMessage?: boolean, syncHash?: boolean }} SetTabOptions
+ */
+
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * @param {AppCore} core
+ */
 export function startUi(core) {
   const { combineMnemonicsFlexible, generateMnemonics, hasRequiredCrypto } = core;
   const elements = getElements();
   const tabs = [elements.generateTab, elements.recoverTab];
+  /** @type {WeakMap<HTMLButtonElement, ReturnType<typeof setTimeout>>} */
   const copyFeedbackTimers = new WeakMap();
+  /** @type {string[]} */
   let currentShares = [];
 
+  /**
+   * @param {string} text
+   * @param {string} [tone]
+   */
   function setMessage(text, tone = "") {
     setElementMessage(elements, text, tone);
   }
 
+  /**
+   * @returns {import("./tabs.js").SecretInputMode}
+   */
   function selectedSecretMode() {
     return normalizeSecretInputMode(
       elements.secretInputModes.find((input) => input.checked)?.value
     );
   }
 
+  /**
+   * @param {unknown} mode
+   * @returns {import("./tabs.js").SecretInputMode}
+   */
   function setSelectedSecretMode(mode) {
     const normalizedMode = normalizeSecretInputMode(mode);
     for (const input of elements.secretInputModes) {
@@ -47,10 +81,16 @@ export function startUi(core) {
     return normalizedMode;
   }
 
+  /**
+   * @param {unknown} mode
+   */
   function updateRecoveryNote(mode) {
     elements.recoveryMasterSecret.textContent = getSecretInputModeConfig(mode).recoveryNote;
   }
 
+  /**
+   * @param {unknown} mode
+   */
   function syncHashToTab(mode) {
     const nextHash = hashForTabMode(mode);
     if (globalThis.location.hash === nextHash) {
@@ -63,6 +103,9 @@ export function startUi(core) {
     globalThis.location.hash = nextHash;
   }
 
+  /**
+   * @param {unknown} mode
+   */
   function syncSearchToSecretMode(mode) {
     const nextSearch = searchForSecretInputMode(globalThis.location.search, mode);
     if (globalThis.location.search === nextSearch || !globalThis.history?.replaceState) {
@@ -71,6 +114,10 @@ export function startUi(core) {
     globalThis.history.replaceState(null, "", hrefForSecretInputMode(globalThis.location, mode));
   }
 
+  /**
+   * @param {unknown} mode
+   * @param {SetTabOptions} [options]
+   */
   function setTab(mode, options = {}) {
     const { clearMessage = true, syncHash = true } = options;
     const generating = mode === UI_TABS.GENERATE;
@@ -88,18 +135,24 @@ export function startUi(core) {
     }
   }
 
+  /**
+   * @param {number} index
+   */
   function focusTab(index) {
     tabs[index].focus();
     tabs[index].click();
   }
 
+  /**
+   * @param {KeyboardEvent} event
+   */
   function handleTabKeydown(event) {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
       return;
     }
 
     event.preventDefault();
-    const currentIndex = tabs.indexOf(event.currentTarget);
+    const currentIndex = tabs.indexOf(/** @type {HTMLButtonElement} */ (event.currentTarget));
     if (event.key === "Home") {
       focusTab(0);
       return;
@@ -140,6 +193,13 @@ export function startUi(core) {
     currentShares = [];
   }
 
+  /**
+   * @param {HTMLButtonElement} button
+   * @param {string} text
+   * @param {string} copiedLabel
+   * @param {string} statusMessage
+   * @returns {Promise<void>}
+   */
   async function copyWithFeedback(button, text, copiedLabel, statusMessage) {
     const originalLabel = button.dataset.originalLabel || button.textContent;
     button.dataset.originalLabel = originalLabel;
@@ -155,7 +215,7 @@ export function startUi(core) {
     clearTimeout(copyFeedbackTimers.get(button));
     copyFeedbackTimers.set(
       button,
-      setTimeout(() => {
+      globalThis.setTimeout(() => {
         button.textContent = originalLabel;
         button.classList.remove("is-copied");
         copyFeedbackTimers.delete(button);
@@ -165,8 +225,12 @@ export function startUi(core) {
 
   elements.generateTab.addEventListener("click", () => setTab(UI_TABS.GENERATE));
   elements.recoverTab.addEventListener("click", () => setTab(UI_TABS.RECOVER));
-  elements.generateTab.addEventListener("keydown", handleTabKeydown);
-  elements.recoverTab.addEventListener("keydown", handleTabKeydown);
+  elements.generateTab.addEventListener("keydown", (event) => {
+    handleTabKeydown(/** @type {KeyboardEvent} */ (event));
+  });
+  elements.recoverTab.addEventListener("keydown", (event) => {
+    handleTabKeydown(/** @type {KeyboardEvent} */ (event));
+  });
   globalThis.addEventListener("hashchange", () => {
     setTab(tabModeFromHash(globalThis.location.hash), { syncHash: false });
   });
@@ -184,7 +248,9 @@ export function startUi(core) {
       const threshold = parsePositiveInteger(elements.threshold, "Threshold");
       const shareCount = parsePositiveInteger(elements.shareCount, "Total shares");
       const mode = selectedSecretMode();
-      const masterSecret = await parseSecretInput(mode, elements.secretHexInput.value, core);
+      const masterSecret = /** @type {Uint8Array} */ (
+        await parseSecretInput(mode, elements.secretHexInput.value, core)
+      );
       const shares = await generateMnemonics(
         threshold,
         shareCount,
@@ -197,7 +263,7 @@ export function startUi(core) {
       setMessage("Shares generated. Store each share separately.", "ok");
     } catch (error) {
       elements.sharesResult.hidden = true;
-      setMessage(error.message, "error");
+      setMessage(errorMessage(error), "error");
     } finally {
       setBusy(elements.generateForm, false);
     }
@@ -215,7 +281,7 @@ export function startUi(core) {
       setMessage(output.message, output.tone);
     } catch (error) {
       clearRecoveryOutput(elements);
-      setMessage(error.message, "error");
+      setMessage(errorMessage(error), "error");
     } finally {
       setBusy(elements.recoverForm, false);
     }

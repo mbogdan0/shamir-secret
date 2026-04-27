@@ -12,12 +12,25 @@ import {
   validateSingleGroupParameters
 } from "./validation.js";
 
+/**
+ * @typedef {{ x: number, data: Uint8Array }} RawShare
+ * @typedef {{ identifier: number, extendable: boolean, iterationExponent: number, ciphertext: Uint8Array }} EncryptedMasterSecret
+ * @typedef {{ identifier?: number, extendable?: boolean, iterationExponent?: number }} GenerateOptions
+ * @typedef {{ mnemonic: string, share: Share }} FlexibleShareEntry
+ * @typedef {{ groupKey: string, sharesByMemberIndex: Map<number, FlexibleShareEntry> }} FlexibleGroup
+ */
+
 class ShareGroup {
   constructor() {
+    /** @type {Map<number, Share>} */
     this.shares = new Map();
+    /** @type {string | null} */
     this.groupKeyValue = null;
   }
 
+  /**
+   * @param {Share} share
+   */
   add(share) {
     if (this.groupKeyValue && this.groupKeyValue !== share.groupKey()) {
       throw new Slip39Error("Invalid set of mnemonics. Group parameters do not match.");
@@ -29,21 +42,40 @@ class ShareGroup {
     this.shares.set(share.index, share);
   }
 
+  /**
+   * @returns {Share}
+   */
   first() {
-    return this.shares.values().next().value;
+    const share = this.shares.values().next().value;
+    if (!share) {
+      throw new Slip39Error("The share group is empty.");
+    }
+    return share;
   }
 
+  /**
+   * @returns {number}
+   */
   memberThreshold() {
     return this.first().memberThreshold;
   }
 
+  /**
+   * @returns {RawShare[]}
+   */
   rawShares() {
     return [...this.shares.values()].map((share) => ({ x: share.index, data: share.value }));
   }
 }
 
+/**
+ * @param {string[]} mnemonics
+ * @returns {Map<number, ShareGroup>}
+ */
 function decodeMnemonics(mnemonics) {
+  /** @type {Map<number, ShareGroup>} */
   const groups = new Map();
+  /** @type {string | null} */
   let commonKey = null;
   let decodedCount = 0;
 
@@ -62,7 +94,11 @@ function decodeMnemonics(mnemonics) {
     if (!groups.has(share.groupIndex)) {
       groups.set(share.groupIndex, new ShareGroup());
     }
-    groups.get(share.groupIndex).add(share);
+    const group = groups.get(share.groupIndex);
+    if (!group) {
+      throw new Slip39Error("Invalid mnemonic group state.");
+    }
+    group.add(share);
   }
 
   if (decodedCount === 0) {
@@ -72,12 +108,19 @@ function decodeMnemonics(mnemonics) {
   return groups;
 }
 
+/**
+ * @param {Map<number, ShareGroup>} groups
+ * @returns {Promise<EncryptedMasterSecret>}
+ */
 async function recoverEms(groups) {
   if (groups.size === 0) {
     throw new Slip39Error("The set of shares is empty.");
   }
 
   const firstGroup = groups.values().next().value;
+  if (!firstGroup) {
+    throw new Slip39Error("The set of shares is empty.");
+  }
   const params = firstGroup.first();
 
   if (groups.size < params.groupThreshold) {
@@ -91,6 +134,7 @@ async function recoverEms(groups) {
     );
   }
 
+  /** @type {RawShare[]} */
   const groupShares = [];
   for (const [groupIndex, group] of groups) {
     const memberThreshold = group.memberThreshold();
@@ -114,6 +158,14 @@ async function recoverEms(groups) {
   };
 }
 
+/**
+ * @param {number} threshold
+ * @param {number} shareCount
+ * @param {Uint8Array} masterSecret
+ * @param {string} [passphrase]
+ * @param {GenerateOptions} [options]
+ * @returns {Promise<string[]>}
+ */
 export async function generateMnemonics(
   threshold,
   shareCount,
@@ -130,6 +182,7 @@ export async function generateMnemonics(
   const identifier = options.identifier ?? randomIdentifier();
   validateIdentifier(identifier);
 
+  /** @type {Uint8Array | undefined} */
   let encryptedMasterSecret;
   try {
     encryptedMasterSecret = await encrypt(
@@ -160,6 +213,11 @@ export async function generateMnemonics(
   }
 }
 
+/**
+ * @param {string[]} mnemonics
+ * @param {string} [passphrase]
+ * @returns {Promise<Uint8Array>}
+ */
 export async function combineMnemonics(mnemonics, passphrase = "") {
   const passphraseBytes = validatePassphrase(passphrase);
   try {
@@ -177,6 +235,12 @@ export async function combineMnemonics(mnemonics, passphrase = "") {
   }
 }
 
+/**
+ * @template T
+ * @param {T[]} items
+ * @param {number} size
+ * @returns {T[][]}
+ */
 function combinations(items, size) {
   if (size < 0 || size > items.length) {
     return [];
@@ -185,9 +249,14 @@ function combinations(items, size) {
     return [[]];
   }
 
+  /** @type {T[][]} */
   const result = [];
+  /** @type {T[]} */
   const current = [];
 
+  /**
+   * @param {number} start
+   */
   function visit(start) {
     if (current.length === size) {
       result.push([...current]);
@@ -206,16 +275,30 @@ function combinations(items, size) {
   return result;
 }
 
+/**
+ * @template T
+ * @param {T[][]} groups
+ * @returns {T[][]}
+ */
 function cartesianProduct(groups) {
-  return groups.reduce(
-    (product, group) => product.flatMap((prefix) => group.map((item) => [...prefix, item])),
-    [[]]
-  );
+  /** @type {T[][]} */
+  let product = [[]];
+  for (const group of groups) {
+    product = product.flatMap((prefix) => group.map((item) => [...prefix, item]));
+  }
+  return product;
 }
 
+/**
+ * @param {string[]} mnemonics
+ * @returns {Map<number, FlexibleGroup>}
+ */
 function parseFlexibleMnemonics(mnemonics) {
+  /** @type {Map<number, FlexibleGroup>} */
   const groups = new Map();
+  /** @type {Set<string>} */
   const seenMnemonics = new Set();
+  /** @type {string | null} */
   let commonKey = null;
   let decodedCount = 0;
 
@@ -247,6 +330,9 @@ function parseFlexibleMnemonics(mnemonics) {
     }
 
     const group = groups.get(share.groupIndex);
+    if (!group) {
+      throw new Slip39Error("Invalid mnemonic group state.");
+    }
     if (group.groupKey !== share.groupKey()) {
       throw new Slip39Error("Invalid set of mnemonics. Group parameters do not match.");
     }
@@ -274,14 +360,30 @@ function parseFlexibleMnemonics(mnemonics) {
   return groups;
 }
 
+/**
+ * @param {string[]} mnemonics
+ * @param {string} [passphrase]
+ * @returns {Promise<Uint8Array>}
+ */
 export async function combineMnemonicsFlexible(mnemonics, passphrase = "") {
   const groups = parseFlexibleMnemonics(mnemonics);
   const firstGroup = groups.values().next().value;
-  const firstShare = firstGroup.sharesByMemberIndex.values().next().value.share;
+  if (!firstGroup) {
+    throw new Slip39Error("The list of mnemonics is empty.");
+  }
+  const firstEntry = firstGroup.sharesByMemberIndex.values().next().value;
+  if (!firstEntry) {
+    throw new Slip39Error("The list of mnemonics is empty.");
+  }
+  const firstShare = firstEntry.share;
   const groupThreshold = firstShare.groupThreshold;
   const completeGroups = [...groups.entries()]
     .map(([groupIndex, group]) => {
-      const memberThreshold = group.sharesByMemberIndex.values().next().value.share.memberThreshold;
+      const firstMemberEntry = group.sharesByMemberIndex.values().next().value;
+      if (!firstMemberEntry) {
+        throw new Slip39Error("Invalid mnemonic group state.");
+      }
+      const memberThreshold = firstMemberEntry.share.memberThreshold;
       const shares = [...group.sharesByMemberIndex.values()];
       return {
         groupIndex,
@@ -314,7 +416,7 @@ export async function combineMnemonicsFlexible(mnemonics, passphrase = "") {
       try {
         return await combineMnemonics(candidateMnemonics, passphrase);
       } catch (error) {
-        const message = error?.message ?? String(error);
+        const message = error instanceof Error ? error.message : String(error);
         errorCounts.set(message, (errorCounts.get(message) ?? 0) + 1);
       }
     }
@@ -324,7 +426,8 @@ export async function combineMnemonicsFlexible(mnemonics, passphrase = "") {
     throw new Slip39Error("No valid threshold-complete mnemonic subset was found.");
   }
   if (errorCounts.size === 1) {
-    const [onlyMessage] = errorCounts.keys();
+    const onlyMessage =
+      [...errorCounts.keys()][0] ?? "No valid threshold-complete mnemonic subset was found.";
     throw new Slip39Error(onlyMessage);
   }
   const ranked = [...errorCounts.entries()].sort((a, b) => b[1] - a[1]);

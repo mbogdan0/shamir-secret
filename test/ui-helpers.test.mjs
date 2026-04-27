@@ -18,21 +18,44 @@ import {
   UI_TABS
 } from "../src/js/ui/tabs.js";
 
+/**
+ * @returns {import("../src/js/ui/secret-input.js").SecretInputCore & import("../src/js/ui/recovery-output.js").RecoveryCore}
+ */
 function makeCore() {
   return {
     MIN_STRENGTH_BITS: 128,
+    /**
+     * @param {number} bits
+     * @returns {number}
+     */
     bitsToBytes(bits) {
       return Math.ceil(bits / 8);
     },
+    /**
+     * @param {Uint8Array} bytes
+     * @returns {string}
+     */
     bytesToHex(bytes) {
       return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
     },
+    /**
+     * @param {string} value
+     * @returns {string}
+     */
     compactHex(value) {
       return value.replace(/\s+/g, "").toLowerCase();
     },
+    /**
+     * @param {Uint8Array} bytes
+     * @returns {string | null}
+     */
     decodeTextMasterSecret(bytes) {
       return bytes[0] === 0x54 ? "decoded text" : null;
     },
+    /**
+     * @param {string} value
+     * @returns {{ utf8ByteLength: number, masterSecretByteLength: number, paddingByteLength: number }}
+     */
     describeTextMasterSecret(value) {
       if (value === "too large") {
         throw new Error("The text is too large for the SLIP39TXT v1 envelope.");
@@ -44,9 +67,17 @@ function makeCore() {
         paddingByteLength: utf8ByteLength % 2
       };
     },
+    /**
+     * @param {string} value
+     * @returns {string}
+     */
     encodeTextMasterSecret(value) {
       return `text:${value}`;
     },
+    /**
+     * @param {string} value
+     * @returns {string}
+     */
     parseMasterSecretHex(value) {
       return `hex:${value}`;
     }
