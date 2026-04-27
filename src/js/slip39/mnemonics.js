@@ -3,6 +3,7 @@ import { GROUP_PREFIX_LENGTH_WORDS, ID_EXP_LENGTH_WORDS } from "./constants.js";
 import { Slip39Error } from "./errors.js";
 import { recoverSecret, splitSecret } from "./secret-sharing.js";
 import { Share } from "./share.js";
+import { zeroize } from "./utils.js";
 import {
   validateIdentifier,
   validateIterationExponent,
@@ -129,42 +130,51 @@ export async function generateMnemonics(
   const identifier = options.identifier ?? randomIdentifier();
   validateIdentifier(identifier);
 
-  const encryptedMasterSecret = await encrypt(
-    masterSecret,
-    passphraseBytes,
-    iterationExponent,
-    identifier,
-    extendable
-  );
-  const groupShares = await splitSecret(1, 1, encryptedMasterSecret);
-  const memberShares = await splitSecret(threshold, shareCount, groupShares[0].data);
-
-  return memberShares.map((share) =>
-    new Share(
-      identifier,
-      extendable,
+  let encryptedMasterSecret;
+  try {
+    encryptedMasterSecret = await encrypt(
+      masterSecret,
+      passphraseBytes,
       iterationExponent,
-      0,
-      1,
-      1,
-      share.x,
-      threshold,
-      share.data
-    ).toMnemonic()
-  );
+      identifier,
+      extendable
+    );
+    const groupShares = await splitSecret(1, 1, encryptedMasterSecret);
+    const memberShares = await splitSecret(threshold, shareCount, groupShares[0].data);
+
+    return memberShares.map((share) =>
+      new Share(
+        identifier,
+        extendable,
+        iterationExponent,
+        0,
+        1,
+        1,
+        share.x,
+        threshold,
+        share.data
+      ).toMnemonic()
+    );
+  } finally {
+    zeroize(passphraseBytes, encryptedMasterSecret);
+  }
 }
 
 export async function combineMnemonics(mnemonics, passphrase = "") {
   const passphraseBytes = validatePassphrase(passphrase);
-  const groups = decodeMnemonics(mnemonics);
-  const encryptedMasterSecret = await recoverEms(groups);
-  return decrypt(
-    encryptedMasterSecret.ciphertext,
-    passphraseBytes,
-    encryptedMasterSecret.iterationExponent,
-    encryptedMasterSecret.identifier,
-    encryptedMasterSecret.extendable
-  );
+  try {
+    const groups = decodeMnemonics(mnemonics);
+    const encryptedMasterSecret = await recoverEms(groups);
+    return await decrypt(
+      encryptedMasterSecret.ciphertext,
+      passphraseBytes,
+      encryptedMasterSecret.iterationExponent,
+      encryptedMasterSecret.identifier,
+      encryptedMasterSecret.extendable
+    );
+  } finally {
+    zeroize(passphraseBytes);
+  }
 }
 
 function combinations(items, size) {
@@ -292,20 +302,34 @@ export async function combineMnemonicsFlexible(mnemonics, passphrase = "") {
     );
   }
 
-  let lastError = null;
+  const errorCounts = new Map();
+  let attemptCount = 0;
   for (const groupSet of combinations(completeGroups, groupThreshold)) {
     const memberCombinationSets = cartesianProduct(
       groupSet.map((group) => group.shareCombinations)
     );
     for (const memberCombinationSet of memberCombinationSets) {
+      attemptCount += 1;
       const candidateMnemonics = memberCombinationSet.flat();
       try {
         return await combineMnemonics(candidateMnemonics, passphrase);
       } catch (error) {
-        lastError = error;
+        const message = error?.message ?? String(error);
+        errorCounts.set(message, (errorCounts.get(message) ?? 0) + 1);
       }
     }
   }
 
-  throw lastError ?? new Slip39Error("No valid threshold-complete mnemonic subset was found.");
+  if (errorCounts.size === 0) {
+    throw new Slip39Error("No valid threshold-complete mnemonic subset was found.");
+  }
+  if (errorCounts.size === 1) {
+    const [onlyMessage] = errorCounts.keys();
+    throw new Slip39Error(onlyMessage);
+  }
+  const ranked = [...errorCounts.entries()].sort((a, b) => b[1] - a[1]);
+  const summary = ranked.map(([message, count]) => `  - ${message} (x${count} times)`).join("\n");
+  throw new Slip39Error(
+    `No valid threshold-complete mnemonic subset was found.\nTried ${attemptCount} combinations. Most common errors:\n${summary}`
+  );
 }

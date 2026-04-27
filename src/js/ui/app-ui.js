@@ -184,7 +184,7 @@ export function startUi(core) {
       const threshold = parsePositiveInteger(elements.threshold, "Threshold");
       const shareCount = parsePositiveInteger(elements.shareCount, "Total shares");
       const mode = selectedSecretMode();
-      const masterSecret = parseSecretInput(mode, elements.secretHexInput.value, core);
+      const masterSecret = await parseSecretInput(mode, elements.secretHexInput.value, core);
       const shares = await generateMnemonics(
         threshold,
         shareCount,
@@ -211,7 +211,7 @@ export function startUi(core) {
     try {
       const mnemonics = splitSharesInput(elements.sharesInput.value);
       const recovered = await combineMnemonicsFlexible(mnemonics, elements.recoverPassphrase.value);
-      const output = renderRecoveryOutput(elements, recovered, core);
+      const output = await renderRecoveryOutput(elements, recovered, core);
       setMessage(output.message, output.tone);
     } catch (error) {
       clearRecoveryOutput(elements);

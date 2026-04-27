@@ -1,6 +1,6 @@
-import { randomBytes } from "./crypto.js";
+import { sha256 } from "./crypto.js";
 import { Slip39Error } from "./errors.js";
-import { concatBytes } from "./utils.js";
+import { bytesEqual, concatBytes } from "./utils.js";
 import { validateMasterSecretBytes } from "./validation.js";
 
 const TEXT_ENCODER = new TextEncoder();
@@ -9,7 +9,9 @@ const TEXT_MASTER_SECRET_MAGIC = Uint8Array.from("SLIP39TXT", (char) => char.cha
 const TEXT_MASTER_SECRET_VERSION = 1;
 const VERSION_OFFSET = TEXT_MASTER_SECRET_MAGIC.length;
 const LENGTH_OFFSET = VERSION_OFFSET + 1;
-const PAYLOAD_OFFSET = LENGTH_OFFSET + 4 + 16;
+const TAG_OFFSET = LENGTH_OFFSET + 4;
+const TAG_LENGTH = 16;
+const PAYLOAD_OFFSET = TAG_OFFSET + TAG_LENGTH;
 const MAX_UINT32 = 0xffffffff;
 
 function ensureText(value) {
@@ -53,7 +55,14 @@ function hasMagic(bytes) {
   return true;
 }
 
-function parseTextMasterSecretEnvelope(bytes) {
+async function computeEnvelopeTag(bytes) {
+  const buffer = new Uint8Array(bytes);
+  buffer.fill(0, TAG_OFFSET, TAG_OFFSET + TAG_LENGTH);
+  const digest = await sha256(buffer);
+  return digest.subarray(0, TAG_LENGTH);
+}
+
+async function parseTextMasterSecretEnvelope(bytes) {
   if (!hasMagic(bytes) || bytes.length < PAYLOAD_OFFSET) {
     return null;
   }
@@ -69,6 +78,12 @@ function parseTextMasterSecretEnvelope(bytes) {
 
   const paddingByteLength = bytes.length - payloadEnd;
   if (paddingByteLength !== getPaddingLength(utf8ByteLength)) {
+    return null;
+  }
+
+  const expectedTag = await computeEnvelopeTag(bytes);
+  const actualTag = bytes.subarray(TAG_OFFSET, TAG_OFFSET + TAG_LENGTH);
+  if (!bytesEqual(expectedTag, actualTag)) {
     return null;
   }
 
@@ -98,7 +113,7 @@ export function describeTextMasterSecret(text) {
   };
 }
 
-export function encodeTextMasterSecret(text) {
+export async function encodeTextMasterSecret(text) {
   ensureText(text);
   const payload = TEXT_ENCODER.encode(text);
   if (payload.length > MAX_UINT32) {
@@ -109,19 +124,20 @@ export function encodeTextMasterSecret(text) {
   header.set(TEXT_MASTER_SECRET_MAGIC);
   header[VERSION_OFFSET] = TEXT_MASTER_SECRET_VERSION;
   writeUint32BigEndian(header, LENGTH_OFFSET, payload.length);
-  header.set(randomBytes(16), LENGTH_OFFSET + 4);
 
   const paddingByteLength = getPaddingLength(payload.length);
-  const padding = paddingByteLength === 0 ? new Uint8Array() : randomBytes(paddingByteLength);
+  const padding = paddingByteLength === 0 ? new Uint8Array() : new Uint8Array(paddingByteLength);
   const output = concatBytes(header, payload, padding);
+  const tag = await computeEnvelopeTag(output);
+  output.set(tag, TAG_OFFSET);
   validateMasterSecretBytes(output);
   return output;
 }
 
-export function decodeTextMasterSecret(bytes) {
-  return parseTextMasterSecretEnvelope(bytes)?.text ?? null;
+export async function decodeTextMasterSecret(bytes) {
+  return (await parseTextMasterSecretEnvelope(bytes))?.text ?? null;
 }
 
-export function isTextMasterSecretEnvelope(bytes) {
-  return parseTextMasterSecretEnvelope(bytes) !== null;
+export async function isTextMasterSecretEnvelope(bytes) {
+  return (await parseTextMasterSecretEnvelope(bytes)) !== null;
 }

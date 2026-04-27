@@ -93,8 +93,8 @@ Envelope structure includes:
 - Magic prefix: `SLIP39TXT`
 - Version byte: `1`
 - 4-byte big-endian UTF-8 length
-- 16 random header bytes
-- Optional random padding for even byte length
+- 16-byte integrity tag: leading bytes of `SHA-256(magic || version || lengthBE || zero(16) || payload || padding)`. The decoder zeroes the tag region, recomputes the digest, and compares with constant-time equality; mismatch means decode returns `null`.
+- Optional zero padding for even byte length
 
 Interoperability implications:
 

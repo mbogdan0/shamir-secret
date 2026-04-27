@@ -7,14 +7,36 @@ import { test } from "node:test";
 import { promisify } from "node:util";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import fc from "fast-check";
+import {
+  combineMnemonics as combineMnemonicsSource,
+  generateMnemonics as generateMnemonicsSource
+} from "../src/js/slip39/mnemonics.js";
 
 const execFileAsync = promisify(execFile);
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const VECTOR_PATH = resolve(projectRoot, "test", "fixtures", "slip39-vectors.json");
+const INTEROP_MATRIX_PATH = resolve(projectRoot, "test", "fixtures", "slip39-interop-matrix.json");
 const SECRET_16 = Uint8Array.from({ length: 16 }, (_, index) => index);
 const SECRET_32 = Uint8Array.from({ length: 32 }, (_, index) => index);
 const SECRET_16_HEX = "000102030405060708090a0b0c0d0e0f";
 const SECRET_32_HEX = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const INDEX_UNIVERSE = Array.from({ length: 16 }, (_, index) => index);
+const PRINTABLE_ASCII_ARBITRARY = fc
+  .array(fc.integer({ min: 32, max: 126 }), { minLength: 0, maxLength: 32 })
+  .map((codes) => String.fromCharCode(...codes));
+const INDEX_PERMUTATION_ARBITRARY = fc.shuffledSubarray(INDEX_UNIVERSE, {
+  minLength: INDEX_UNIVERSE.length,
+  maxLength: INDEX_UNIVERSE.length
+});
+const ROUND_TRIP_PARAMETERS_ARBITRARY = fc
+  .tuple(fc.integer({ min: 1, max: 16 }), fc.integer({ min: 1, max: 16 }))
+  .filter(
+    ([threshold, shareCount]) => shareCount >= threshold && !(threshold === 1 && shareCount > 1)
+  );
+const THRESHOLD_PARAMETERS_ARBITRARY = fc
+  .tuple(fc.integer({ min: 2, max: 16 }), fc.integer({ min: 2, max: 16 }))
+  .filter(([threshold, shareCount]) => shareCount >= threshold);
 
 const REFERENCE_FIXTURES = [
   {
@@ -86,6 +108,10 @@ const appPromise = loadAppCore();
 
 function asArray(bytes) {
   return [...bytes];
+}
+
+function bytesToHexLocal(bytes) {
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function utf8Length(value) {
@@ -166,6 +192,33 @@ test("deterministic generation fixtures are recoverable by Trezor reference", as
       app.hexToBytes(fixture.secretHex),
       fixture.passphrase,
       fixture.options
+    );
+
+    assert.deepEqual([...shares], fixture.mnemonics, fixture.name);
+    assert.equal(
+      app.bytesToHex(
+        await app.combineMnemonics(shares.slice(0, fixture.threshold), fixture.passphrase)
+      ),
+      fixture.secretHex,
+      fixture.name
+    );
+  }
+});
+
+test("vendored deterministic interop matrix covers iteration exponent and checksum variants", async () => {
+  const fixtures = JSON.parse(await readFile(INTEROP_MATRIX_PATH, "utf8"));
+  for (const fixture of fixtures) {
+    const app = await loadAppCore(deterministicCrypto());
+    const shares = await app.generateMnemonics(
+      fixture.threshold,
+      fixture.shareCount,
+      app.hexToBytes(fixture.secretHex),
+      fixture.passphrase,
+      {
+        identifier: fixture.identifier,
+        extendable: fixture.extendable,
+        iterationExponent: fixture.iterationExponent
+      }
     );
 
     assert.deepEqual([...shares], fixture.mnemonics, fixture.name);
@@ -287,21 +340,21 @@ test("text master secret envelopes round-trip user text", async () => {
 
   for (const text of cases) {
     const info = describeTextMasterSecret(text);
-    const encoded = encodeTextMasterSecret(text);
+    const encoded = await encodeTextMasterSecret(text);
     assert.equal(info.utf8ByteLength, utf8Length(text));
     assert.equal(info.paddingByteLength, info.utf8ByteLength % 2);
     assert.equal(encoded.length, info.masterSecretByteLength);
     assert.equal(encoded.length % 2, 0);
     assert.ok(encoded.length >= 16);
-    assert.equal(isTextMasterSecretEnvelope(encoded), true);
-    assert.equal(decodeTextMasterSecret(encoded), text);
+    assert.equal(await isTextMasterSecretEnvelope(encoded), true);
+    assert.equal(await decodeTextMasterSecret(encoded), text);
   }
 });
 
 test("text envelope decoder ignores unsupported or malformed bytes", async () => {
   const { decodeTextMasterSecret, encodeTextMasterSecret, isTextMasterSecretEnvelope } =
     await loadAppCore(deterministicCrypto());
-  const valid = encodeTextMasterSecret("a");
+  const valid = await encodeTextMasterSecret("a");
   const badVersion = new Uint8Array(valid);
   badVersion["SLIP39TXT".length] = 2;
   const badLength = new Uint8Array(valid);
@@ -314,18 +367,33 @@ test("text envelope decoder ignores unsupported or malformed bytes", async () =>
   invalidUtf8[30] = 0xff;
 
   for (const bytes of [SECRET_16, badVersion, badLength, missingPadding, invalidUtf8]) {
-    assert.equal(isTextMasterSecretEnvelope(bytes), false);
-    assert.equal(decodeTextMasterSecret(bytes), null);
+    assert.equal(await isTextMasterSecretEnvelope(bytes), false);
+    assert.equal(await decodeTextMasterSecret(bytes), null);
   }
+});
+
+test("text envelope tag detects payload tampering", async () => {
+  const { decodeTextMasterSecret, encodeTextMasterSecret, isTextMasterSecretEnvelope } =
+    await loadAppCore(deterministicCrypto());
+  const encoded = await encodeTextMasterSecret("hello world");
+  const PAYLOAD_OFFSET = "SLIP39TXT".length + 1 + 4 + 16;
+  const tampered = new Uint8Array(encoded);
+  tampered[PAYLOAD_OFFSET] ^= 1;
+  assert.equal(await isTextMasterSecretEnvelope(tampered), false);
+  assert.equal(await decodeTextMasterSecret(tampered), null);
+
+  const tamperedTag = new Uint8Array(encoded);
+  tamperedTag["SLIP39TXT".length + 1 + 4] ^= 1;
+  assert.equal(await decodeTextMasterSecret(tamperedTag), null);
 });
 
 test("text envelopes remain standard SLIP-0039 master-secret bytes", async () => {
   const app = await loadAppCore(deterministicCrypto());
-  const encoded = app.encodeTextMasterSecret("recover me\nexactly");
+  const encoded = await app.encodeTextMasterSecret("recover me\nexactly");
   const shares = await app.generateMnemonics(2, 3, encoded, "");
   const recovered = await app.combineMnemonics([shares[0], shares[1]], "");
   assert.deepEqual(asArray(recovered), asArray(encoded));
-  assert.equal(app.decodeTextMasterSecret(recovered), "recover me\nexactly");
+  assert.equal(await app.decodeTextMasterSecret(recovered), "recover me\nexactly");
 });
 
 test("standard validation rejects invalid generation parameters", async () => {
@@ -358,12 +426,217 @@ test("parsed shares reject invalid checksum, duplicates, mismatches, and group i
   assert.throws(() => Share.fromMnemonic(invalidGroupIndex), /Group index/);
 });
 
+test("splitSecret rejects non-Uint8Array and short shared secrets", async () => {
+  const { Slip39Error, splitSecret } = await appPromise;
+  await assert.rejects(
+    () => splitSecret(2, 3, new Uint8Array(4)),
+    (error) => error instanceof Slip39Error && /at least \d+ bytes/.test(error.message)
+  );
+  await assert.rejects(
+    () => splitSecret(2, 3, "not bytes"),
+    (error) => error instanceof Slip39Error && /Uint8Array/.test(error.message)
+  );
+});
+
+test("encrypt does not mutate the caller's master secret buffer", async () => {
+  const app = await loadAppCore(deterministicCrypto());
+  const original = new Uint8Array(SECRET_16);
+  const snapshot = new Uint8Array(SECRET_16);
+  await app.generateMnemonics(2, 3, original, "TREZOR", { identifier: 7 });
+  assert.deepEqual(asArray(original), asArray(snapshot));
+});
+
+test(
+  "combineMnemonics zeroizes its internal passphrase buffer",
+  { concurrency: false },
+  async () => {
+    const passphrase = "sensitive-passphrase-0123456789";
+    const passphraseBytes = new TextEncoder().encode(passphrase);
+    const shares = await generateMnemonicsSource(2, 3, SECRET_16, passphrase, { identifier: 99 });
+    const originalFill = Uint8Array.prototype.fill;
+    let observedPassphraseZeroize = false;
+
+    Uint8Array.prototype.fill = function patchedFill(value, ...rest) {
+      const before = new Uint8Array(this);
+      const result = originalFill.call(this, value, ...rest);
+
+      if (value === 0 && rest.length === 0 && before.length === passphraseBytes.length) {
+        const matchesPassphrase = before.every((byte, index) => byte === passphraseBytes[index]);
+        const isZeroized = this.every((byte) => byte === 0);
+        if (matchesPassphrase && isZeroized) {
+          observedPassphraseZeroize = true;
+        }
+      }
+
+      return result;
+    };
+
+    try {
+      await combineMnemonicsSource([shares[0], shares[1]], passphrase);
+    } finally {
+      Uint8Array.prototype.fill = originalFill;
+    }
+
+    assert.equal(observedPassphraseZeroize, true);
+  }
+);
+
+test("flexible recovery aggregates mixed root causes across failed subsets", async () => {
+  const { Share, Slip39Error, combineMnemonicsFlexible } = await appPromise;
+
+  const lengthMismatchGroupFirst = new Share(
+    777,
+    true,
+    1,
+    0,
+    1,
+    2,
+    0,
+    2,
+    Uint8Array.from({ length: 16 }, (_, index) => index)
+  ).toMnemonic();
+  const lengthMismatchGroupSecond = new Share(
+    777,
+    true,
+    1,
+    0,
+    1,
+    2,
+    1,
+    2,
+    Uint8Array.from({ length: 18 }, (_, index) => (index + 1) & 0xff)
+  ).toMnemonic();
+  const digestFailureGroupFirst = new Share(
+    777,
+    true,
+    1,
+    1,
+    1,
+    2,
+    0,
+    2,
+    Uint8Array.from({ length: 16 }, (_, index) => (index + 17) & 0xff)
+  ).toMnemonic();
+  const digestFailureGroupSecond = new Share(
+    777,
+    true,
+    1,
+    1,
+    1,
+    2,
+    1,
+    2,
+    Uint8Array.from({ length: 16 }, (_, index) => (index + 33) & 0xff)
+  ).toMnemonic();
+
+  await assert.rejects(
+    () =>
+      combineMnemonicsFlexible(
+        [
+          lengthMismatchGroupFirst,
+          lengthMismatchGroupSecond,
+          digestFailureGroupFirst,
+          digestFailureGroupSecond
+        ],
+        ""
+      ),
+    (error) => {
+      assert.ok(error instanceof Slip39Error);
+      assert.match(error.message, /No valid threshold-complete mnemonic subset was found/);
+      assert.match(error.message, /Tried 2 combinations/);
+      assert.match(error.message, /All share values must have the same length/);
+      assert.match(error.message, /Invalid digest of the shared secret/);
+      return true;
+    }
+  );
+});
+
 test("wrong passphrase returns different bytes without app-specific rejection", async () => {
   const { bytesToHex, combineMnemonics, generateMnemonics } = await appPromise;
   const shares = await generateMnemonics(2, 3, SECRET_16, "TREZOR");
   const recovered = await combineMnemonics([shares[0], shares[1]], "WRONG");
   assert.equal(recovered.length, SECRET_16.length);
   assert.notEqual(bytesToHex(recovered), SECRET_16_HEX);
+});
+
+test(
+  "property: generate/combine round-trip for secret length, threshold, and passphrase variants",
+  { timeout: 120000 },
+  async () => {
+    const { bytesToHex, combineMnemonics, generateMnemonics } = await appPromise;
+    await fc.assert(
+      fc.asyncProperty(
+        fc.constantFrom(16, 32),
+        ROUND_TRIP_PARAMETERS_ARBITRARY,
+        PRINTABLE_ASCII_ARBITRARY,
+        fc.uint8Array({ minLength: 32, maxLength: 32 }),
+        INDEX_PERMUTATION_ARBITRARY,
+        async (
+          secretLength,
+          [threshold, shareCount],
+          passphrase,
+          randomBytes,
+          indexPermutation
+        ) => {
+          const secret = randomBytes.slice(0, secretLength);
+          const mnemonics = await generateMnemonics(threshold, shareCount, secret, passphrase, {
+            identifier: 1
+          });
+          const subset = indexPermutation
+            .filter((index) => index < shareCount)
+            .slice(0, threshold)
+            .map((index) => mnemonics[index]);
+          const recovered = await combineMnemonics(subset, passphrase);
+          assert.equal(bytesToHex(recovered), bytesToHexLocal(secret));
+        }
+      ),
+      { numRuns: 50 }
+    );
+  }
+);
+
+test("property: combining fewer than threshold shares never deterministically recovers the secret", async () => {
+  const { Slip39Error, bytesToHex, combineMnemonics, generateMnemonics } = await appPromise;
+  await fc.assert(
+    fc.asyncProperty(
+      THRESHOLD_PARAMETERS_ARBITRARY,
+      INDEX_PERMUTATION_ARBITRARY,
+      async ([threshold, shareCount], indexPermutation) => {
+        const mnemonics = await generateMnemonics(threshold, shareCount, SECRET_16, "", {
+          identifier: 1
+        });
+        const insufficient = indexPermutation
+          .filter((index) => index < shareCount)
+          .slice(0, threshold - 1)
+          .map((index) => mnemonics[index]);
+
+        try {
+          const recovered = await combineMnemonics(insufficient, "");
+          assert.notEqual(bytesToHex(recovered), SECRET_16_HEX);
+        } catch (error) {
+          assert.ok(error instanceof Slip39Error);
+        }
+      }
+    ),
+    { numRuns: 100 }
+  );
+});
+
+test("property: GF(256) multiplication obeys associative, commutative, and identity laws", async () => {
+  const { gfMultiply } = await appPromise;
+  fc.assert(
+    fc.property(
+      fc.integer({ min: 1, max: 255 }),
+      fc.integer({ min: 1, max: 255 }),
+      fc.integer({ min: 1, max: 255 }),
+      (a, b, c) => {
+        assert.equal(gfMultiply(a, gfMultiply(b, c)), gfMultiply(gfMultiply(a, b), c));
+        assert.equal(gfMultiply(a, b), gfMultiply(b, a));
+        assert.equal(gfMultiply(a, 1), a);
+      }
+    ),
+    { numRuns: 1000 }
+  );
 });
 
 test("recovery supports original and extendable checksum variants", async () => {

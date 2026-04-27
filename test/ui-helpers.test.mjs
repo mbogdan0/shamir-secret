@@ -104,10 +104,10 @@ test("text input status shows UTF-8 to SLIP-0039 byte counts", () => {
   });
 });
 
-test("secret input parsing dispatches by mode", () => {
+test("secret input parsing dispatches by mode", async () => {
   const core = makeCore();
-  assert.equal(parseSecretInput(SECRET_INPUT_MODES.HEX, "abcd", core), "hex:abcd");
-  assert.equal(parseSecretInput(SECRET_INPUT_MODES.TEXT, "hello", core), "text:hello");
+  assert.equal(await parseSecretInput(SECRET_INPUT_MODES.HEX, "abcd", core), "hex:abcd");
+  assert.equal(await parseSecretInput(SECRET_INPUT_MODES.TEXT, "hello", core), "text:hello");
   assert.throws(
     () => parseSecretInput("other", "hello", core),
     /Unsupported master secret input mode/
@@ -126,9 +126,9 @@ test("parsePositiveInteger uses explicit labels", () => {
   );
 });
 
-test("recovery output distinguishes text envelopes from raw bytes", () => {
+test("recovery output distinguishes text envelopes from raw bytes", async () => {
   const core = makeCore();
-  assert.deepEqual(getRecoveryOutput(new Uint8Array([0x00, 0xff]), core), {
+  assert.deepEqual(await getRecoveryOutput(new Uint8Array([0x00, 0xff]), core), {
     hex: "00ff",
     text: "",
     hasText: false,
@@ -138,7 +138,7 @@ test("recovery output distinguishes text envelopes from raw bytes", () => {
       "Master secret bytes recovered. SLIP-0039 cannot verify whether the passphrase was the intended one.",
     tone: "warning"
   });
-  assert.deepEqual(getRecoveryOutput(new Uint8Array([0x54, 0x01]), core), {
+  assert.deepEqual(await getRecoveryOutput(new Uint8Array([0x54, 0x01]), core), {
     hex: "5401",
     text: "decoded text",
     hasText: true,

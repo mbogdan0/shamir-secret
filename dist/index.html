@@ -894,6 +894,9 @@ button:disabled {
 		for (let index = 0; index < length; index += 1) output[index] = a[index] ^ b[index];
 		return output;
 	}
+	function zeroize(...buffers) {
+		for (const buffer of buffers) if (buffer && typeof buffer.fill === "function") buffer.fill(0);
+	}
 	function asciiToBytes(value) {
 		const output = new Uint8Array(value.length);
 		for (let index = 0; index < value.length; index += 1) output[index] = value.charCodeAt(index);
@@ -994,15 +997,21 @@ button:disabled {
 		return output;
 	}
 	async function hmacSha256(keyBytes, messageBytes) {
-		const key = await requireWebCrypto().subtle.importKey("raw", keyBytes, {
+		const cryptoRef = requireWebCrypto();
+		const key = await cryptoRef.subtle.importKey("raw", keyBytes, {
 			name: "HMAC",
 			hash: "SHA-256"
 		}, false, ["sign"]);
-		return new Uint8Array(await requireWebCrypto().subtle.sign("HMAC", key, messageBytes));
+		return new Uint8Array(await cryptoRef.subtle.sign("HMAC", key, messageBytes));
+	}
+	async function sha256(messageBytes) {
+		const cryptoRef = requireWebCrypto();
+		return new Uint8Array(await cryptoRef.subtle.digest("SHA-256", messageBytes));
 	}
 	async function pbkdf2Sha256(passwordBytes, saltBytes, iterations, byteLength) {
-		const key = await requireWebCrypto().subtle.importKey("raw", passwordBytes, "PBKDF2", false, ["deriveBits"]);
-		const bits = await requireWebCrypto().subtle.deriveBits({
+		const cryptoRef = requireWebCrypto();
+		const key = await cryptoRef.subtle.importKey("raw", passwordBytes, "PBKDF2", false, ["deriveBits"]);
+		const bits = await cryptoRef.subtle.deriveBits({
 			name: "PBKDF2",
 			hash: "SHA-256",
 			salt: saltBytes,
@@ -1442,22 +1451,36 @@ button:disabled {
 		let left = masterSecret.slice(0, masterSecret.length / 2);
 		let right = masterSecret.slice(masterSecret.length / 2);
 		const salt = saltFor(identifier, extendable);
-		for (let index = 0; index < 4; index += 1) {
-			const next = await roundFunction(index, passphraseBytes, iterationExponent, salt, right);
-			[left, right] = [right, xorBytes(left, next)];
+		try {
+			for (let index = 0; index < 4; index += 1) {
+				const next = await roundFunction(index, passphraseBytes, iterationExponent, salt, right);
+				const newRight = xorBytes(left, next);
+				zeroize(left, next);
+				left = right;
+				right = newRight;
+			}
+			return concatBytes(right, left);
+		} finally {
+			zeroize(left, right, salt);
 		}
-		return concatBytes(right, left);
 	}
 	async function decrypt(encryptedMasterSecret, passphraseBytes, iterationExponent, identifier, extendable) {
 		if (encryptedMasterSecret.length % 2 !== 0) throw new Slip39Error("The encrypted master secret byte length must be even.");
 		let left = encryptedMasterSecret.slice(0, encryptedMasterSecret.length / 2);
 		let right = encryptedMasterSecret.slice(encryptedMasterSecret.length / 2);
 		const salt = saltFor(identifier, extendable);
-		for (let index = 3; index >= 0; index -= 1) {
-			const next = await roundFunction(index, passphraseBytes, iterationExponent, salt, right);
-			[left, right] = [right, xorBytes(left, next)];
+		try {
+			for (let index = 3; index >= 0; index -= 1) {
+				const next = await roundFunction(index, passphraseBytes, iterationExponent, salt, right);
+				const newRight = xorBytes(left, next);
+				zeroize(left, next);
+				left = right;
+				right = newRight;
+			}
+			return concatBytes(right, left);
+		} finally {
+			zeroize(left, right, salt);
 		}
-		return concatBytes(right, left);
 	}
 	function randomIdentifier() {
 		return Number(bytesToBigInt(randomBytes(bitsToBytes(15)))) & 32767;
@@ -1469,6 +1492,8 @@ button:disabled {
 	}
 	async function splitSecret(threshold, shareCount, sharedSecret) {
 		validateShareParameters(threshold, shareCount);
+		if (Object.prototype.toString.call(sharedSecret) !== "[object Uint8Array]") throw new Slip39Error("Shared secret must be a Uint8Array.");
+		if (threshold > 1 && sharedSecret.length < 5) throw new Slip39Error(`Shared secret must be at least 5 bytes when threshold > 1.`);
 		if (threshold === 1) return Array.from({ length: shareCount }, (_, index) => ({
 			x: index,
 			data: new Uint8Array(sharedSecret)
@@ -1495,13 +1520,20 @@ button:disabled {
 			x: index,
 			data: interpolate(baseShares, index)
 		});
+		zeroize(randomPart, digest);
 		return shares;
 	}
 	async function recoverSecret(threshold, shares) {
 		if (threshold === 1) return new Uint8Array(shares[0].data);
 		const sharedSecret = interpolate(shares, 255);
 		const digestShare = interpolate(shares, 254);
-		if (!bytesEqual(digestShare.slice(0, 4), await createDigest(digestShare.slice(4), sharedSecret))) throw new Slip39Error("Invalid digest of the shared secret.");
+		const digest = digestShare.slice(0, 4);
+		const randomPart = digestShare.slice(4);
+		if (!bytesEqual(digest, await createDigest(randomPart, sharedSecret))) {
+			zeroize(digestShare, digest, randomPart, sharedSecret);
+			throw new Slip39Error("Invalid digest of the shared secret.");
+		}
+		zeroize(digestShare, digest, randomPart);
 		return sharedSecret;
 	}
 	//#endregion
@@ -1654,12 +1686,22 @@ button:disabled {
 		const extendable = options.extendable ?? true;
 		const identifier = options.identifier ?? randomIdentifier();
 		validateIdentifier(identifier);
-		return (await splitSecret(threshold, shareCount, (await splitSecret(1, 1, await encrypt(masterSecret, passphraseBytes, iterationExponent, identifier, extendable)))[0].data)).map((share) => new Share(identifier, extendable, iterationExponent, 0, 1, 1, share.x, threshold, share.data).toMnemonic());
+		let encryptedMasterSecret;
+		try {
+			encryptedMasterSecret = await encrypt(masterSecret, passphraseBytes, iterationExponent, identifier, extendable);
+			return (await splitSecret(threshold, shareCount, (await splitSecret(1, 1, encryptedMasterSecret))[0].data)).map((share) => new Share(identifier, extendable, iterationExponent, 0, 1, 1, share.x, threshold, share.data).toMnemonic());
+		} finally {
+			zeroize(passphraseBytes, encryptedMasterSecret);
+		}
 	}
 	async function combineMnemonics(mnemonics, passphrase = "") {
 		const passphraseBytes = validatePassphrase(passphrase);
-		const encryptedMasterSecret = await recoverEms(decodeMnemonics(mnemonics));
-		return decrypt(encryptedMasterSecret.ciphertext, passphraseBytes, encryptedMasterSecret.iterationExponent, encryptedMasterSecret.identifier, encryptedMasterSecret.extendable);
+		try {
+			const encryptedMasterSecret = await recoverEms(decodeMnemonics(mnemonics));
+			return await decrypt(encryptedMasterSecret.ciphertext, passphraseBytes, encryptedMasterSecret.iterationExponent, encryptedMasterSecret.identifier, encryptedMasterSecret.extendable);
+		} finally {
+			zeroize(passphraseBytes);
+		}
 	}
 	function combinations(items, size) {
 		if (size < 0 || size > items.length) return [];
@@ -1730,19 +1772,28 @@ button:disabled {
 			};
 		}).filter((group) => group.shareCombinations.length > 0);
 		if (completeGroups.length < groupThreshold) throw new Slip39Error(`Insufficient number of mnemonic groups. Required groups: ${groupThreshold}.`);
-		let lastError = null;
+		const errorCounts = /* @__PURE__ */ new Map();
+		let attemptCount = 0;
 		for (const groupSet of combinations(completeGroups, groupThreshold)) {
 			const memberCombinationSets = cartesianProduct(groupSet.map((group) => group.shareCombinations));
 			for (const memberCombinationSet of memberCombinationSets) {
+				attemptCount += 1;
 				const candidateMnemonics = memberCombinationSet.flat();
 				try {
 					return await combineMnemonics(candidateMnemonics, passphrase);
 				} catch (error) {
-					lastError = error;
+					const message = error?.message ?? String(error);
+					errorCounts.set(message, (errorCounts.get(message) ?? 0) + 1);
 				}
 			}
 		}
-		throw lastError ?? new Slip39Error("No valid threshold-complete mnemonic subset was found.");
+		if (errorCounts.size === 0) throw new Slip39Error("No valid threshold-complete mnemonic subset was found.");
+		if (errorCounts.size === 1) {
+			const [onlyMessage] = errorCounts.keys();
+			throw new Slip39Error(onlyMessage);
+		}
+		const summary = [...errorCounts.entries()].sort((a, b) => b[1] - a[1]).map(([message, count]) => `  - ${message} (x${count} times)`).join("\n");
+		throw new Slip39Error(`No valid threshold-complete mnemonic subset was found.\nTried ${attemptCount} combinations. Most common errors:\n${summary}`);
 	}
 	//#endregion
 	//#region src/js/slip39/text-envelope.js
@@ -1752,7 +1803,9 @@ button:disabled {
 	var TEXT_MASTER_SECRET_VERSION = 1;
 	var VERSION_OFFSET = TEXT_MASTER_SECRET_MAGIC.length;
 	var LENGTH_OFFSET = VERSION_OFFSET + 1;
-	var PAYLOAD_OFFSET = LENGTH_OFFSET + 4 + 16;
+	var TAG_OFFSET = LENGTH_OFFSET + 4;
+	var TAG_LENGTH = 16;
+	var PAYLOAD_OFFSET = TAG_OFFSET + TAG_LENGTH;
 	var MAX_UINT32 = 4294967295;
 	function ensureText(value) {
 		if (typeof value !== "string") throw new Slip39Error("The text master secret must be a string.");
@@ -1775,7 +1828,12 @@ button:disabled {
 		for (let index = 0; index < TEXT_MASTER_SECRET_MAGIC.length; index += 1) if (bytes[index] !== TEXT_MASTER_SECRET_MAGIC[index]) return false;
 		return true;
 	}
-	function parseTextMasterSecretEnvelope(bytes) {
+	async function computeEnvelopeTag(bytes) {
+		const buffer = new Uint8Array(bytes);
+		buffer.fill(0, TAG_OFFSET, TAG_OFFSET + TAG_LENGTH);
+		return (await sha256(buffer)).subarray(0, TAG_LENGTH);
+	}
+	async function parseTextMasterSecretEnvelope(bytes) {
 		if (!hasMagic(bytes) || bytes.length < PAYLOAD_OFFSET) return null;
 		if (bytes[VERSION_OFFSET] !== TEXT_MASTER_SECRET_VERSION) return null;
 		const utf8ByteLength = readUint32BigEndian(bytes, LENGTH_OFFSET);
@@ -1783,6 +1841,7 @@ button:disabled {
 		if (!Number.isSafeInteger(payloadEnd) || payloadEnd > bytes.length) return null;
 		const paddingByteLength = bytes.length - payloadEnd;
 		if (paddingByteLength !== getPaddingLength(utf8ByteLength)) return null;
+		if (!bytesEqual(await computeEnvelopeTag(bytes), bytes.subarray(TAG_OFFSET, TAG_OFFSET + TAG_LENGTH))) return null;
 		try {
 			return {
 				text: TEXT_DECODER.decode(bytes.subarray(PAYLOAD_OFFSET, payloadEnd)),
@@ -1805,7 +1864,7 @@ button:disabled {
 			paddingByteLength
 		};
 	}
-	function encodeTextMasterSecret(text) {
+	async function encodeTextMasterSecret(text) {
 		ensureText(text);
 		const payload = TEXT_ENCODER.encode(text);
 		if (payload.length > MAX_UINT32) throw new Slip39Error("The text is too large for the SLIP39TXT v1 envelope.");
@@ -1813,17 +1872,18 @@ button:disabled {
 		header.set(TEXT_MASTER_SECRET_MAGIC);
 		header[VERSION_OFFSET] = TEXT_MASTER_SECRET_VERSION;
 		writeUint32BigEndian(header, LENGTH_OFFSET, payload.length);
-		header.set(randomBytes(16), LENGTH_OFFSET + 4);
 		const paddingByteLength = getPaddingLength(payload.length);
-		const output = concatBytes(header, payload, paddingByteLength === 0 ? new Uint8Array() : randomBytes(paddingByteLength));
+		const output = concatBytes(header, payload, paddingByteLength === 0 ? new Uint8Array() : new Uint8Array(paddingByteLength));
+		const tag = await computeEnvelopeTag(output);
+		output.set(tag, TAG_OFFSET);
 		validateMasterSecretBytes(output);
 		return output;
 	}
-	function decodeTextMasterSecret(bytes) {
-		return parseTextMasterSecretEnvelope(bytes)?.text ?? null;
+	async function decodeTextMasterSecret(bytes) {
+		return (await parseTextMasterSecretEnvelope(bytes))?.text ?? null;
 	}
-	function isTextMasterSecretEnvelope(bytes) {
-		return parseTextMasterSecretEnvelope(bytes) !== null;
+	async function isTextMasterSecretEnvelope(bytes) {
+		return await parseTextMasterSecretEnvelope(bytes) !== null;
 	}
 	//#endregion
 	//#region src/js/slip39/index.js
@@ -1942,8 +2002,8 @@ button:disabled {
 	}
 	//#endregion
 	//#region src/js/ui/recovery-output.js
-	function getRecoveryOutput(recovered, core) {
-		const text = core.decodeTextMasterSecret(recovered);
+	async function getRecoveryOutput(recovered, core) {
+		const text = await core.decodeTextMasterSecret(recovered);
 		const hex = core.bytesToHex(recovered);
 		if (text === null) return {
 			hex,
@@ -1964,8 +2024,8 @@ button:disabled {
 			tone: "warning"
 		};
 	}
-	function renderRecoveryOutput(elements, recovered, core) {
-		const output = getRecoveryOutput(recovered, core);
+	async function renderRecoveryOutput(elements, recovered, core) {
+		const output = await getRecoveryOutput(recovered, core);
 		elements.recoveredTextBlock.hidden = !output.hasText;
 		elements.recoveredText.value = output.text;
 		elements.recoveredHexHeading.textContent = output.hexHeading;
@@ -2267,7 +2327,7 @@ button:disabled {
 				const threshold = parsePositiveInteger(elements.threshold, "Threshold");
 				const shareCount = parsePositiveInteger(elements.shareCount, "Total shares");
 				const mode = selectedSecretMode();
-				const shares = await generateMnemonics(threshold, shareCount, parseSecretInput(mode, elements.secretHexInput.value, core), elements.generatePassphrase.value);
+				const shares = await generateMnemonics(threshold, shareCount, await parseSecretInput(mode, elements.secretHexInput.value, core), elements.generatePassphrase.value);
 				currentShares = shares;
 				renderShares(elements, shares, threshold, shareCount, copyWithFeedback);
 				updateRecoveryNote(mode);
@@ -2284,7 +2344,7 @@ button:disabled {
 			setBusy(elements.recoverForm, true);
 			setMessage$1("");
 			try {
-				const output = renderRecoveryOutput(elements, await combineMnemonicsFlexible(splitSharesInput(elements.sharesInput.value), elements.recoverPassphrase.value), core);
+				const output = await renderRecoveryOutput(elements, await combineMnemonicsFlexible(splitSharesInput(elements.sharesInput.value), elements.recoverPassphrase.value), core);
 				setMessage$1(output.message, output.tone);
 			} catch (error) {
 				clearRecoveryOutput(elements);

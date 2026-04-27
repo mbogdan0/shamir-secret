@@ -12,7 +12,8 @@ import {
   bitsToBytes,
   bytesToBigInt,
   concatBytes,
-  xorBytes
+  xorBytes,
+  zeroize
 } from "./utils.js";
 
 async function roundFunction(index, passphraseBytes, iterationExponent, salt, right) {
@@ -47,12 +48,20 @@ export async function encrypt(
   let right = masterSecret.slice(masterSecret.length / 2);
   const salt = saltFor(identifier, extendable);
 
-  for (let index = 0; index < ROUND_COUNT; index += 1) {
-    const next = await roundFunction(index, passphraseBytes, iterationExponent, salt, right);
-    [left, right] = [right, xorBytes(left, next)];
-  }
+  try {
+    for (let index = 0; index < ROUND_COUNT; index += 1) {
+      const next = await roundFunction(index, passphraseBytes, iterationExponent, salt, right);
+      const newRight = xorBytes(left, next);
+      zeroize(left, next);
+      left = right;
+      right = newRight;
+    }
 
-  return concatBytes(right, left);
+    const output = concatBytes(right, left);
+    return output;
+  } finally {
+    zeroize(left, right, salt);
+  }
 }
 
 export async function decrypt(
@@ -70,12 +79,20 @@ export async function decrypt(
   let right = encryptedMasterSecret.slice(encryptedMasterSecret.length / 2);
   const salt = saltFor(identifier, extendable);
 
-  for (let index = ROUND_COUNT - 1; index >= 0; index -= 1) {
-    const next = await roundFunction(index, passphraseBytes, iterationExponent, salt, right);
-    [left, right] = [right, xorBytes(left, next)];
-  }
+  try {
+    for (let index = ROUND_COUNT - 1; index >= 0; index -= 1) {
+      const next = await roundFunction(index, passphraseBytes, iterationExponent, salt, right);
+      const newRight = xorBytes(left, next);
+      zeroize(left, next);
+      left = right;
+      right = newRight;
+    }
 
-  return concatBytes(right, left);
+    const output = concatBytes(right, left);
+    return output;
+  } finally {
+    zeroize(left, right, salt);
+  }
 }
 
 export function randomIdentifier() {

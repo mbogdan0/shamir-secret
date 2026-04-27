@@ -1,0 +1,92 @@
+[
+  {
+    "name": "extendable=true iterationExponent=0",
+    "identifier": 42,
+    "extendable": true,
+    "iterationExponent": 0,
+    "threshold": 2,
+    "shareCount": 3,
+    "secretHex": "000102030405060708090a0b0c0d0e0f",
+    "passphrase": "",
+    "mnemonics": [
+      "acid favorite academic acid custody ancient hesitate venture havoc hamster nervous round makeup meaning mama bumpy tendency walnut bucket deploy",
+      "acid favorite academic agency advance desire juice unknown breathe loud program prize drift dramatic profile negative formal adult boring resident",
+      "acid favorite academic always devote intimate critical harvest always problem velvet revenue gather valuable promise capacity sniff finger liberty increase"
+    ]
+  },
+  {
+    "name": "extendable=true iterationExponent=1",
+    "identifier": 42,
+    "extendable": true,
+    "iterationExponent": 1,
+    "threshold": 2,
+    "shareCount": 3,
+    "secretHex": "000102030405060708090a0b0c0d0e0f",
+    "passphrase": "",
+    "mnemonics": [
+      "acid fawn academic acid both silent single python romantic grownup paces beam prune geology gums salt husky album racism editor",
+      "acid fawn academic agency dough quick finger mustang laundry credit problem paces year deadline modify gasoline gross quantity grasp humidity",
+      "acid fawn academic always analysis dough modify weapon early work wolf cards type watch visual diagnose fragment rhyme spend lyrics"
+    ]
+  },
+  {
+    "name": "extendable=true iterationExponent=4",
+    "identifier": 42,
+    "extendable": true,
+    "iterationExponent": 4,
+    "threshold": 2,
+    "shareCount": 3,
+    "secretHex": "000102030405060708090a0b0c0d0e0f",
+    "passphrase": "",
+    "mnemonics": [
+      "acid filter academic acid crunch veteran cage silver reject medical wits mobile boundary twin exceed regret deadline apart threaten ugly",
+      "acid filter academic agency darkness costume grumpy devote promise chest hawk carbon reward birthday snake damage repair bolt acne reject",
+      "acid filter academic always crazy flash union merit fishing slow recover craft scramble august building move aide hesitate quiet laser"
+    ]
+  },
+  {
+    "name": "extendable=false iterationExponent=0",
+    "identifier": 42,
+    "extendable": false,
+    "iterationExponent": 0,
+    "threshold": 2,
+    "shareCount": 3,
+    "secretHex": "000102030405060708090a0b0c0d0e0f",
+    "passphrase": "",
+    "mnemonics": [
+      "acid extend academic acid cause dining single profile walnut adjust yield vintage wrote junk plan rhythm have deny album dress",
+      "acid extend academic agency disease verdict prune warn garbage adequate scramble lilac oven detailed edge undergo engage shelter tenant wrap",
+      "acid extend academic always bedroom pecan floral acne valid adorn maximum pile judicial tracks judicial bucket invasion huge crucial helpful"
+    ]
+  },
+  {
+    "name": "extendable=false iterationExponent=1",
+    "identifier": 42,
+    "extendable": false,
+    "iterationExponent": 1,
+    "threshold": 2,
+    "shareCount": 3,
+    "secretHex": "000102030405060708090a0b0c0d0e0f",
+    "passphrase": "",
+    "mnemonics": [
+      "acid extra academic acid advance human silver intend walnut dress engage easel threaten knit home national thumb knife premium genuine",
+      "acid extra academic agency depict standard decorate pipeline garbage burden mandate capital expand prisoner drink emission loud quarter erode teammate",
+      "acid extra academic always clay again domestic hawk declare impulse task keyboard vintage royal single legs greatest criminal wine soul"
+    ]
+  },
+  {
+    "name": "extendable=false iterationExponent=4",
+    "identifier": 42,
+    "extendable": false,
+    "iterationExponent": 4,
+    "threshold": 2,
+    "shareCount": 3,
+    "secretHex": "000102030405060708090a0b0c0d0e0f",
+    "passphrase": "",
+    "mnemonics": [
+      "acid fact academic acid clogs march cluster stilt drift privacy tackle music daughter parking ambition unwrap envelope standard finance knife",
+      "acid fact academic agency duckling sister suitable false inform render carve scandal imply amuse genre guest treat velvet element skunk",
+      "acid fact academic always believe aquatic puny tackle herd location fragment decision moment trouble rapids taught excuse symbolic space minister"
+    ]
+  }
+]

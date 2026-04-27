@@ -1,5 +1,5 @@
-export function getRecoveryOutput(recovered, core) {
-  const text = core.decodeTextMasterSecret(recovered);
+export async function getRecoveryOutput(recovered, core) {
+  const text = await core.decodeTextMasterSecret(recovered);
   const hex = core.bytesToHex(recovered);
 
   if (text === null) {
@@ -27,8 +27,8 @@ export function getRecoveryOutput(recovered, core) {
   };
 }
 
-export function renderRecoveryOutput(elements, recovered, core) {
-  const output = getRecoveryOutput(recovered, core);
+export async function renderRecoveryOutput(elements, recovered, core) {
+  const output = await getRecoveryOutput(recovered, core);
   elements.recoveredTextBlock.hidden = !output.hasText;
   elements.recoveredText.value = output.text;
   elements.recoveredHexHeading.textContent = output.hexHeading;

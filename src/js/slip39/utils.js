@@ -45,6 +45,14 @@ export function xorBytes(a, b) {
   return output;
 }
 
+export function zeroize(...buffers) {
+  for (const buffer of buffers) {
+    if (buffer && typeof buffer.fill === "function") {
+      buffer.fill(0);
+    }
+  }
+}
+
 export function asciiToBytes(value) {
   const output = new Uint8Array(value.length);
   for (let index = 0; index < value.length; index += 1) {

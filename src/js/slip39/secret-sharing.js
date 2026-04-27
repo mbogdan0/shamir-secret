@@ -2,7 +2,7 @@ import { DIGEST_INDEX, DIGEST_LENGTH_BYTES, SECRET_INDEX } from "./constants.js"
 import { hmacSha256, randomBytes } from "./crypto.js";
 import { Slip39Error } from "./errors.js";
 import { interpolate } from "./gf256.js";
-import { bytesEqual, concatBytes } from "./utils.js";
+import { bytesEqual, concatBytes, zeroize } from "./utils.js";
 import { validateShareParameters } from "./validation.js";
 
 export async function createDigest(randomPart, sharedSecret) {
@@ -11,6 +11,14 @@ export async function createDigest(randomPart, sharedSecret) {
 
 export async function splitSecret(threshold, shareCount, sharedSecret) {
   validateShareParameters(threshold, shareCount);
+  if (Object.prototype.toString.call(sharedSecret) !== "[object Uint8Array]") {
+    throw new Slip39Error("Shared secret must be a Uint8Array.");
+  }
+  if (threshold > 1 && sharedSecret.length < DIGEST_LENGTH_BYTES + 1) {
+    throw new Slip39Error(
+      `Shared secret must be at least ${DIGEST_LENGTH_BYTES + 1} bytes when threshold > 1.`
+    );
+  }
   if (threshold === 1) {
     return Array.from({ length: shareCount }, (_, index) => ({
       x: index,
@@ -36,6 +44,7 @@ export async function splitSecret(threshold, shareCount, sharedSecret) {
     shares.push({ x: index, data: interpolate(baseShares, index) });
   }
 
+  zeroize(randomPart, digest);
   return shares;
 }
 
@@ -50,8 +59,10 @@ export async function recoverSecret(threshold, shares) {
   const randomPart = digestShare.slice(DIGEST_LENGTH_BYTES);
 
   if (!bytesEqual(digest, await createDigest(randomPart, sharedSecret))) {
+    zeroize(digestShare, digest, randomPart, sharedSecret);
     throw new Slip39Error("Invalid digest of the shared secret.");
   }
 
+  zeroize(digestShare, digest, randomPart);
   return sharedSecret;
 }
