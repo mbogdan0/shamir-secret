@@ -58,10 +58,29 @@
           <p class="eyebrow">Offline SLIP-0039</p>
           <h1>Shamir Secret</h1>
         </div>
-        <div class="status-pill is-error" id="cryptoStatus" hidden>Web Crypto unavailable</div>
+        <div class="topbar-actions">
+          <a
+            class="source-link"
+            href="https://github.com/mbogdan0/shamir-secret"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Open source on GitHub</a
+          >
+          <div class="status-pill is-error" id="cryptoStatus" hidden>Web Crypto unavailable</div>
+        </div>
       </header>
 
       <section class="workspace" aria-label="Secret sharing workspace">
+        <aside class="real-secrets-note" aria-label="Use for real secrets?">
+          <h2>Use for real secrets?</h2>
+          <p>
+            This project has not had a formal third-party cryptographic audit. Browser memory is not
+            a protected boundary, and clipboard contents, browser extensions, malware, or a
+            compromised OS can expose secrets. For high-value secrets, prefer audited
+            hardware-wallet or vendor flows.
+          </p>
+        </aside>
+
         <div class="tabs" role="tablist" aria-label="Mode">
           <button
             class="tab is-active"
@@ -125,7 +144,8 @@
                   >0 UTF-8 bytes -&gt; 30 SLIP-0039 bytes</small
                 >
                 <small class="field-help mode-hint" id="secretModeHint"
-                  >Hex stores raw bytes. Text wraps UTF-8.</small
+                  >Text mode uses an app-specific envelope; hex/bytes are the canonical portable
+                  form.</small
                 >
               </div>
               <small class="field-help" id="secretTransform"
@@ -160,7 +180,9 @@
                 value="3"
                 aria-describedby="shareCountHelp"
               />
-              <small class="field-help" id="shareCountHelp">Create 1 to 16 shares.</small>
+              <small class="field-help" id="shareCountHelp"
+                >Create 1 to 16 shares in one SLIP-0039 group.</small
+              >
             </label>
 
             <label class="field">
@@ -174,7 +196,9 @@
                 value="2"
                 aria-describedby="thresholdHelp"
               />
-              <small class="field-help" id="thresholdHelp">Shares required to recover.</small>
+              <small class="field-help" id="thresholdHelp"
+                >Single-group T-of-N generation only.</small
+              >
             </label>
 
             <div class="actions">
@@ -203,7 +227,10 @@
                 <dt>Parameters</dt>
                 <dd>ext=1, iteration exponent=1</dd>
                 <dt>Compatibility</dt>
-                <dd>SLIP-0039 only; not BIP-0039</dd>
+                <dd>
+                  SLIP-0039 only; generation is single-group, while recovery accepts compatible
+                  valid group-policy shares
+                </dd>
               </dl>
             </aside>
           </div>

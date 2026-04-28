@@ -40,9 +40,10 @@ export async function getRecoveryOutput(
     text,
     hasText: true,
     hexHeading: "Recovered envelope hex",
-    hexHelpText: "Canonical envelope bytes for SLIP-0039 tools.",
+    hexHelpText:
+      "Text mode uses an app-specific envelope; hex/bytes are the canonical portable form.",
     message:
-      "Text envelope recovered. The hex remains the canonical SLIP-0039 master-secret bytes. SLIP-0039 cannot verify whether the passphrase was the intended one.",
+      "Text envelope recovered. Text mode uses an app-specific envelope; hex/bytes are the canonical portable form. SLIP-0039 cannot verify whether the passphrase was the intended one.",
     tone: "warning"
   };
 }

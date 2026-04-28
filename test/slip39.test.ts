@@ -1,15 +1,11 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { webcrypto } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { test } from "node:test";
-import { promisify } from "node:util";
-import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 import fc from "fast-check";
-import type { RawShare } from "../src/ts/slip39/gf256.ts";
-import type { GenerateOptions } from "../src/ts/slip39/mnemonics.ts";
+import * as slip39 from "../src/ts/slip39/index.ts";
 import {
   combineMnemonics as combineMnemonicsSource,
   generateMnemonics as generateMnemonicsSource
@@ -20,40 +16,8 @@ type TestCrypto = {
   getRandomValues(target: Uint8Array): Uint8Array;
 };
 
-type AppTestApi = {
-  SLIP39_WORDS: string[];
-  Share: typeof import("../src/ts/slip39/share.ts").Share;
-  Slip39Error: typeof import("../src/ts/slip39/errors.ts").Slip39Error;
-  bytesToHex(bytes: Uint8Array): string;
-  combineMnemonics(mnemonics: string[], passphrase?: string): Promise<Uint8Array>;
-  combineMnemonicsFlexible(mnemonics: string[], passphrase?: string): Promise<Uint8Array>;
-  createChecksum(data: number[], customizationString: string): number[];
-  decodeTextMasterSecret(bytes: Uint8Array): Promise<string | null>;
-  describeTextMasterSecret(value: string): {
-    utf8ByteLength: number;
-    masterSecretByteLength: number;
-    paddingByteLength: number;
-  };
-  encodeTextMasterSecret(value: string): Promise<Uint8Array>;
-  generateMnemonics(
-    threshold: number,
-    shareCount: number,
-    masterSecret: Uint8Array,
-    passphrase?: string,
-    options?: GenerateOptions
-  ): Promise<string[]>;
-  gfMultiply(left: number, right: number): number;
-  hasRequiredCrypto(): boolean;
-  hexToBytes(value: string): Uint8Array;
-  interpolate(shares: RawShare[], x: number): Uint8Array;
-  isTextMasterSecretEnvelope(bytes: Uint8Array): Promise<boolean>;
-  normalizeHex(value: string): string;
-  parseMasterSecretHex(value: string): Uint8Array;
-  splitSecret(threshold: number, shareCount: number, sharedSecret: Uint8Array): Promise<RawShare[]>;
-  verifyChecksum(data: number[], customizationString: string): boolean;
-};
+type AppTestApi = typeof slip39;
 
-const execFileAsync = promisify(execFile);
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const VECTOR_PATH = resolve(projectRoot, "test", "fixtures", "slip39-vectors.json");
 const INTEROP_MATRIX_PATH = resolve(projectRoot, "test", "fixtures", "slip39-interop-matrix.json");
@@ -137,29 +101,62 @@ const REFERENCE_FIXTURES: ReferenceFixture[] = [
   }
 ];
 
-const appScriptPromise = (async (): Promise<string> => {
-  await execFileAsync("node", ["--experimental-strip-types", "scripts/build.ts"], {
-    cwd: projectRoot
+function withGlobalCrypto<T>(cryptoValue: unknown, callback: () => T): T {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  Object.defineProperty(globalThis, "crypto", {
+    configurable: true,
+    value: cryptoValue
   });
-  const html = await readFile(resolve(projectRoot, "dist/index.html"), "utf8");
-  const scriptMatch = html.match(/<script\b[^>]*id=["']app-source["'][^>]*>([\s\S]*?)<\/script>/i);
-  assert.ok(scriptMatch, "dist/index.html must contain the inline app-source script");
-  return scriptMatch[1];
-})();
+
+  const restore = (): void => {
+    if (descriptor) {
+      Object.defineProperty(globalThis, "crypto", descriptor);
+    } else {
+      Reflect.deleteProperty(globalThis, "crypto");
+    }
+  };
+
+  try {
+    const result = callback();
+    if (
+      result &&
+      typeof result === "object" &&
+      "finally" in result &&
+      typeof result.finally === "function"
+    ) {
+      return result.finally(restore) as T;
+    }
+    restore();
+    return result;
+  } catch (error) {
+    restore();
+    throw error;
+  }
+}
 
 async function loadAppCore(
   crypto: TestCrypto = webcrypto as unknown as TestCrypto
 ): Promise<AppTestApi> {
-  const appScript = await appScriptPromise;
-  const context = vm.createContext({
-    crypto,
-    console,
-    TextDecoder,
-    TextEncoder
-  }) as vm.Context & { __SLIP39_APP__?: AppTestApi };
-  vm.runInContext(appScript, context, { filename: "dist/index.html" });
-  assert.ok(context.__SLIP39_APP__, "inline app script must expose its test API");
-  return context.__SLIP39_APP__;
+  return {
+    ...slip39,
+    combineMnemonics: (mnemonics, passphrase) =>
+      withGlobalCrypto(crypto, () => slip39.combineMnemonics(mnemonics, passphrase)),
+    combineMnemonicsFlexible: (mnemonics, passphrase) =>
+      withGlobalCrypto(crypto, () => slip39.combineMnemonicsFlexible(mnemonics, passphrase)),
+    decodeTextMasterSecret: (bytes) =>
+      withGlobalCrypto(crypto, () => slip39.decodeTextMasterSecret(bytes)),
+    encodeTextMasterSecret: (value) =>
+      withGlobalCrypto(crypto, () => slip39.encodeTextMasterSecret(value)),
+    generateMnemonics: (threshold, shareCount, masterSecret, passphrase, options) =>
+      withGlobalCrypto(crypto, () =>
+        slip39.generateMnemonics(threshold, shareCount, masterSecret, passphrase, options)
+      ),
+    hasRequiredCrypto: () => withGlobalCrypto(crypto, () => slip39.hasRequiredCrypto()),
+    isTextMasterSecretEnvelope: (bytes) =>
+      withGlobalCrypto(crypto, () => slip39.isTextMasterSecretEnvelope(bytes)),
+    splitSecret: (threshold, shareCount, sharedSecret) =>
+      withGlobalCrypto(crypto, () => slip39.splitSecret(threshold, shareCount, sharedSecret))
+  };
 }
 
 function deterministicCrypto(): TestCrypto {
@@ -352,6 +349,37 @@ test("flexible recovery rejects conflicting same-index shares", async () => {
   await assert.rejects(
     () => combineMnemonicsFlexible([shares[0], conflictingShare, shares[1]], ""),
     /Conflicting mnemonic shares/
+  );
+});
+
+test("flexible recovery rejects too many input lines before parsing", async () => {
+  const { MAX_RECOVERY_INPUT_LINES, combineMnemonicsFlexible, generateMnemonics } =
+    await appPromise;
+  const [share] = await generateMnemonics(1, 1, SECRET_16, "", { identifier: 21 });
+  const lines = Array.from({ length: MAX_RECOVERY_INPUT_LINES + 1 }, () => share);
+
+  await assert.rejects(() => combineMnemonicsFlexible(lines, ""), /Too many mnemonic share lines/);
+});
+
+test("flexible recovery aborts too many candidate combinations", async () => {
+  const { Share, combineMnemonicsFlexible } = await appPromise;
+  const shares = Array.from({ length: 16 }, (_, shareIndex) =>
+    new Share(
+      22,
+      true,
+      1,
+      0,
+      1,
+      1,
+      shareIndex,
+      8,
+      Uint8Array.from({ length: 16 }, (_, byteIndex) => (shareIndex * 17 + byteIndex) & 0xff)
+    ).toMnemonic()
+  );
+
+  await assert.rejects(
+    () => combineMnemonicsFlexible(shares, ""),
+    /Too many candidate combinations/
   );
 });
 

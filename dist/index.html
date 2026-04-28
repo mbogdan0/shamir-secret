@@ -118,6 +118,36 @@ textarea {
   margin-bottom: 18px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.source-link {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--accent-strong);
+  padding: 7px 11px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.source-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.source-link:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--focus), transparent 72%);
+  outline-offset: 2px;
+}
+
 .eyebrow {
   margin: 0 0 3px;
   color: var(--accent);
@@ -163,6 +193,27 @@ h2 {
   border-radius: 8px;
   box-shadow: var(--shadow);
   overflow: hidden;
+}
+
+.real-secrets-note {
+  display: grid;
+  gap: 5px;
+  border-bottom: 1px solid var(--line);
+  background: #fff8ed;
+  padding: 14px 22px;
+}
+
+.real-secrets-note h2 {
+  color: #5b3a00;
+  font-size: 15px;
+}
+
+.real-secrets-note p {
+  max-width: 920px;
+  margin: 0;
+  color: #4f3a17;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .tabs {
@@ -519,8 +570,21 @@ button:disabled {
     flex-direction: column;
   }
 
+  .topbar-actions {
+    align-items: start;
+    justify-content: start;
+  }
+
+  .source-link {
+    white-space: normal;
+  }
+
   .status-pill {
     white-space: normal;
+  }
+
+  .real-secrets-note {
+    padding: 13px 16px;
   }
 
   .panel {
@@ -587,10 +651,29 @@ button:disabled {
           <p class="eyebrow">Offline SLIP-0039</p>
           <h1>Shamir Secret</h1>
         </div>
-        <div class="status-pill is-error" id="cryptoStatus" hidden>Web Crypto unavailable</div>
+        <div class="topbar-actions">
+          <a
+            class="source-link"
+            href="https://github.com/mbogdan0/shamir-secret"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Open source on GitHub</a
+          >
+          <div class="status-pill is-error" id="cryptoStatus" hidden>Web Crypto unavailable</div>
+        </div>
       </header>
 
       <section class="workspace" aria-label="Secret sharing workspace">
+        <aside class="real-secrets-note" aria-label="Use for real secrets?">
+          <h2>Use for real secrets?</h2>
+          <p>
+            This project has not had a formal third-party cryptographic audit. Browser memory is not
+            a protected boundary, and clipboard contents, browser extensions, malware, or a
+            compromised OS can expose secrets. For high-value secrets, prefer audited
+            hardware-wallet or vendor flows.
+          </p>
+        </aside>
+
         <div class="tabs" role="tablist" aria-label="Mode">
           <button
             class="tab is-active"
@@ -654,7 +737,8 @@ button:disabled {
                   >0 UTF-8 bytes -&gt; 30 SLIP-0039 bytes</small
                 >
                 <small class="field-help mode-hint" id="secretModeHint"
-                  >Hex stores raw bytes. Text wraps UTF-8.</small
+                  >Text mode uses an app-specific envelope; hex/bytes are the canonical portable
+                  form.</small
                 >
               </div>
               <small class="field-help" id="secretTransform"
@@ -689,7 +773,9 @@ button:disabled {
                 value="3"
                 aria-describedby="shareCountHelp"
               />
-              <small class="field-help" id="shareCountHelp">Create 1 to 16 shares.</small>
+              <small class="field-help" id="shareCountHelp"
+                >Create 1 to 16 shares in one SLIP-0039 group.</small
+              >
             </label>
 
             <label class="field">
@@ -703,7 +789,9 @@ button:disabled {
                 value="2"
                 aria-describedby="thresholdHelp"
               />
-              <small class="field-help" id="thresholdHelp">Shares required to recover.</small>
+              <small class="field-help" id="thresholdHelp"
+                >Single-group T-of-N generation only.</small
+              >
             </label>
 
             <div class="actions">
@@ -732,7 +820,10 @@ button:disabled {
                 <dt>Parameters</dt>
                 <dd>ext=1, iteration exponent=1</dd>
                 <dt>Compatibility</dt>
-                <dd>SLIP-0039 only; not BIP-0039</dd>
+                <dd>
+                  SLIP-0039 only; generation is single-group, while recovery accepts compatible
+                  valid group-policy shares
+                </dd>
               </dl>
             </aside>
           </div>
@@ -1029,10 +1120,6 @@ button:disabled {
 		};
 	}
 	var { exp: EXP_TABLE, log: LOG_TABLE } = precomputeExpLog();
-	function gfMultiply(left, right) {
-		if (left === 0 || right === 0) return 0;
-		return EXP_TABLE[(LOG_TABLE[left] + LOG_TABLE[right]) % 255];
-	}
 	function interpolate(shares, x) {
 		const seen = /* @__PURE__ */ new Set();
 		const lengths = /* @__PURE__ */ new Set();
@@ -1394,36 +1481,45 @@ button:disabled {
 			zeroize(passphraseBytes);
 		}
 	}
-	function combinations(items, size) {
-		if (size < 0 || size > items.length) return [];
-		if (size === 0) return [[]];
-		const result = [];
+	function* combinations(items, size) {
+		if (size < 0 || size > items.length) return;
+		if (size === 0) {
+			yield [];
+			return;
+		}
 		const current = [];
-		function visit(start) {
+		function* visit(start) {
 			if (current.length === size) {
-				result.push([...current]);
+				yield [...current];
 				return;
 			}
 			const remaining = size - current.length;
 			for (let index = start; index <= items.length - remaining; index += 1) {
 				current.push(items[index]);
-				visit(index + 1);
+				yield* visit(index + 1);
 				current.pop();
 			}
 		}
-		visit(0);
-		return result;
+		yield* visit(0);
 	}
-	function cartesianProduct(groups) {
-		let product = [[]];
-		for (const group of groups) product = product.flatMap((prefix) => group.map((item) => [...prefix, item]));
-		return product;
+	function* candidateMemberSets(groups, index = 0, current = []) {
+		if (index === groups.length) {
+			yield current.map((candidate) => [...candidate]);
+			return;
+		}
+		const group = groups[index];
+		for (const candidate of combinations(group.shares, group.memberThreshold)) {
+			current.push(candidate.map((entry) => entry.mnemonic));
+			yield* candidateMemberSets(groups, index + 1, current);
+			current.pop();
+		}
 	}
 	function parseFlexibleMnemonics(mnemonics) {
 		const groups = /* @__PURE__ */ new Map();
 		const seenMnemonics = /* @__PURE__ */ new Set();
 		let commonKey = null;
 		let decodedCount = 0;
+		if (mnemonics.filter((mnemonic) => mnemonic.trim()).length > 256) throw new Slip39Error(`Too many mnemonic share lines. Maximum is 256.`);
 		for (const mnemonic of mnemonics) {
 			if (!mnemonic.trim()) continue;
 			const share = Share.fromMnemonic(mnemonic);
@@ -1460,31 +1556,26 @@ button:disabled {
 		const firstEntry = firstGroup.sharesByMemberIndex.values().next().value;
 		if (!firstEntry) throw new Slip39Error("The list of mnemonics is empty.");
 		const groupThreshold = firstEntry.share.groupThreshold;
-		const completeGroups = [...groups.entries()].map(([groupIndex, group]) => {
+		const completeGroups = [...groups.entries()].map(([, group]) => {
 			const firstMemberEntry = group.sharesByMemberIndex.values().next().value;
 			if (!firstMemberEntry) throw new Slip39Error("Invalid mnemonic group state.");
-			const memberThreshold = firstMemberEntry.share.memberThreshold;
-			const shares = [...group.sharesByMemberIndex.values()];
 			return {
-				groupIndex,
-				memberThreshold,
-				shareCombinations: shares.length >= memberThreshold ? combinations(shares, memberThreshold).map((candidate) => candidate.map((entry) => entry.mnemonic)) : []
+				memberThreshold: firstMemberEntry.share.memberThreshold,
+				shares: [...group.sharesByMemberIndex.values()]
 			};
-		}).filter((group) => group.shareCombinations.length > 0);
+		}).filter((group) => group.shares.length >= group.memberThreshold);
 		if (completeGroups.length < groupThreshold) throw new Slip39Error(`Insufficient number of mnemonic groups. Required groups: ${groupThreshold}.`);
 		const errorCounts = /* @__PURE__ */ new Map();
 		let attemptCount = 0;
-		for (const groupSet of combinations(completeGroups, groupThreshold)) {
-			const memberCombinationSets = cartesianProduct(groupSet.map((group) => group.shareCombinations));
-			for (const memberCombinationSet of memberCombinationSets) {
-				attemptCount += 1;
-				const candidateMnemonics = memberCombinationSet.flat();
-				try {
-					return await combineMnemonics(candidateMnemonics, passphrase);
-				} catch (error) {
-					const message = error instanceof Error ? error.message : String(error);
-					errorCounts.set(message, (errorCounts.get(message) ?? 0) + 1);
-				}
+		for (const groupSet of combinations(completeGroups, groupThreshold)) for (const memberCombinationSet of candidateMemberSets(groupSet)) {
+			if (attemptCount >= 512) throw new Slip39Error("Too many candidate combinations.");
+			attemptCount += 1;
+			const candidateMnemonics = memberCombinationSet.flat();
+			try {
+				return await combineMnemonics(candidateMnemonics, passphrase);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				errorCounts.set(message, (errorCounts.get(message) ?? 0) + 1);
 			}
 		}
 		if (errorCounts.size === 0) throw new Slip39Error("No valid threshold-complete mnemonic subset was found.");
@@ -1579,9 +1670,6 @@ button:disabled {
 	}
 	async function decodeTextMasterSecret(bytes) {
 		return (await parseTextMasterSecretEnvelope(bytes))?.text ?? null;
-	}
-	async function isTextMasterSecretEnvelope(bytes) {
-		return await parseTextMasterSecretEnvelope(bytes) !== null;
 	}
 	//#endregion
 	//#region src/ts/ui/clipboard.ts
@@ -1681,8 +1769,8 @@ button:disabled {
 			text,
 			hasText: true,
 			hexHeading: "Recovered envelope hex",
-			hexHelpText: "Canonical envelope bytes for SLIP-0039 tools.",
-			message: "Text envelope recovered. The hex remains the canonical SLIP-0039 master-secret bytes. SLIP-0039 cannot verify whether the passphrase was the intended one.",
+			hexHelpText: "Text mode uses an app-specific envelope; hex/bytes are the canonical portable form.",
+			message: "Text envelope recovered. Text mode uses an app-specific envelope; hex/bytes are the canonical portable form. SLIP-0039 cannot verify whether the passphrase was the intended one.",
 			tone: "warning"
 		};
 	}
@@ -1715,15 +1803,15 @@ button:disabled {
 			label: "Master secret hex",
 			placeholder: "At least 32 hex digits",
 			helpText: "Whitespace is ignored; byte length must be even.",
-			modeHint: "Hex stores raw bytes. Text wraps UTF-8.",
+			modeHint: "Text mode uses an app-specific envelope; hex/bytes are the canonical portable form.",
 			recoveryNote: "Raw bytes encoded as lowercase hex"
 		},
 		[SECRET_INPUT_MODES.TEXT]: {
 			label: "Master secret text",
 			placeholder: "Enter text to protect",
 			helpText: "Spacing and new lines are preserved.",
-			modeHint: "Hex stores raw bytes. Text wraps UTF-8.",
-			recoveryNote: "Text encoded as a SLIP39TXT v1 envelope; external tools recover envelope bytes as hex"
+			modeHint: "Text mode uses an app-specific envelope; hex/bytes are the canonical portable form.",
+			recoveryNote: "Text mode uses an app-specific envelope; hex/bytes are the canonical portable form."
 		}
 	});
 	function assertMode(mode) {
@@ -2072,28 +2160,6 @@ button:disabled {
 		generateMnemonics,
 		hasRequiredCrypto,
 		parseMasterSecretHex
-	};
-	globalThis.__SLIP39_APP__ = {
-		SLIP39_WORDS,
-		Share,
-		Slip39Error,
-		bytesToHex,
-		combineMnemonics,
-		combineMnemonicsFlexible,
-		createChecksum,
-		decodeTextMasterSecret,
-		describeTextMasterSecret,
-		encodeTextMasterSecret,
-		generateMnemonics,
-		gfMultiply,
-		hasRequiredCrypto,
-		hexToBytes,
-		interpolate,
-		isTextMasterSecretEnvelope,
-		normalizeHex,
-		parseMasterSecretHex,
-		splitSecret,
-		verifyChecksum
 	};
 	if (typeof document !== "undefined") startUi(appCore);
 	//#endregion

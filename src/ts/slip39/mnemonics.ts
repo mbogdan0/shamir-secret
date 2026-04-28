@@ -1,5 +1,10 @@
 import { decrypt, encrypt, randomIdentifier } from "./cipher.ts";
-import { GROUP_PREFIX_LENGTH_WORDS, ID_EXP_LENGTH_WORDS } from "./constants.ts";
+import {
+  GROUP_PREFIX_LENGTH_WORDS,
+  ID_EXP_LENGTH_WORDS,
+  MAX_RECOVERY_CANDIDATE_COMBINATIONS,
+  MAX_RECOVERY_INPUT_LINES
+} from "./constants.ts";
 import { Slip39Error } from "./errors.ts";
 import type { RawShare } from "./gf256.ts";
 import { recoverSecret, splitSecret } from "./secret-sharing.ts";
@@ -210,41 +215,50 @@ export async function combineMnemonics(
   }
 }
 
-function combinations<T>(items: T[], size: number): T[][] {
+function* combinations<T>(items: T[], size: number): Generator<T[]> {
   if (size < 0 || size > items.length) {
-    return [];
+    return;
   }
   if (size === 0) {
-    return [[]];
+    yield [];
+    return;
   }
 
-  const result: T[][] = [];
   const current: T[] = [];
 
-  function visit(start: number): void {
+  function* visit(start: number): Generator<T[]> {
     if (current.length === size) {
-      result.push([...current]);
+      yield [...current];
       return;
     }
 
     const remaining = size - current.length;
     for (let index = start; index <= items.length - remaining; index += 1) {
       current.push(items[index]);
-      visit(index + 1);
+      yield* visit(index + 1);
       current.pop();
     }
   }
 
-  visit(0);
-  return result;
+  yield* visit(0);
 }
 
-function cartesianProduct<T>(groups: T[][]): T[][] {
-  let product: T[][] = [[]];
-  for (const group of groups) {
-    product = product.flatMap((prefix) => group.map((item) => [...prefix, item]));
+function* candidateMemberSets(
+  groups: Array<{ memberThreshold: number; shares: FlexibleShareEntry[] }>,
+  index: number = 0,
+  current: string[][] = []
+): Generator<string[][]> {
+  if (index === groups.length) {
+    yield current.map((candidate) => [...candidate]);
+    return;
   }
-  return product;
+
+  const group = groups[index];
+  for (const candidate of combinations(group.shares, group.memberThreshold)) {
+    current.push(candidate.map((entry) => entry.mnemonic));
+    yield* candidateMemberSets(groups, index + 1, current);
+    current.pop();
+  }
 }
 
 function parseFlexibleMnemonics(mnemonics: string[]): Map<number, FlexibleGroup> {
@@ -252,6 +266,11 @@ function parseFlexibleMnemonics(mnemonics: string[]): Map<number, FlexibleGroup>
   const seenMnemonics: Set<string> = new Set();
   let commonKey: string | null = null;
   let decodedCount = 0;
+  const inputLines = mnemonics.filter((mnemonic) => mnemonic.trim()).length;
+
+  if (inputLines > MAX_RECOVERY_INPUT_LINES) {
+    throw new Slip39Error(`Too many mnemonic share lines. Maximum is ${MAX_RECOVERY_INPUT_LINES}.`);
+  }
 
   for (const mnemonic of mnemonics) {
     if (!mnemonic.trim()) {
@@ -327,7 +346,7 @@ export async function combineMnemonicsFlexible(
   const firstShare = firstEntry.share;
   const groupThreshold = firstShare.groupThreshold;
   const completeGroups = [...groups.entries()]
-    .map(([groupIndex, group]) => {
+    .map(([, group]) => {
       const firstMemberEntry = group.sharesByMemberIndex.values().next().value;
       if (!firstMemberEntry) {
         throw new Slip39Error("Invalid mnemonic group state.");
@@ -335,17 +354,11 @@ export async function combineMnemonicsFlexible(
       const memberThreshold = firstMemberEntry.share.memberThreshold;
       const shares = [...group.sharesByMemberIndex.values()];
       return {
-        groupIndex,
         memberThreshold,
-        shareCombinations:
-          shares.length >= memberThreshold
-            ? combinations(shares, memberThreshold).map((candidate) =>
-                candidate.map((entry) => entry.mnemonic)
-              )
-            : []
+        shares
       };
     })
-    .filter((group) => group.shareCombinations.length > 0);
+    .filter((group) => group.shares.length >= group.memberThreshold);
 
   if (completeGroups.length < groupThreshold) {
     throw new Slip39Error(
@@ -356,10 +369,10 @@ export async function combineMnemonicsFlexible(
   const errorCounts = new Map<string, number>();
   let attemptCount = 0;
   for (const groupSet of combinations(completeGroups, groupThreshold)) {
-    const memberCombinationSets = cartesianProduct(
-      groupSet.map((group) => group.shareCombinations)
-    );
-    for (const memberCombinationSet of memberCombinationSets) {
+    for (const memberCombinationSet of candidateMemberSets(groupSet)) {
+      if (attemptCount >= MAX_RECOVERY_CANDIDATE_COMBINATIONS) {
+        throw new Slip39Error("Too many candidate combinations.");
+      }
       attemptCount += 1;
       const candidateMnemonics = memberCombinationSet.flat();
       try {

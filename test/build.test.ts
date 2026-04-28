@@ -5,7 +5,13 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { renderInlineHtml, runBuildCli, strictCspPolicy, verifyHtml } from "../scripts/build.ts";
+import {
+  renderInlineHtml,
+  runBuildCli,
+  sourceRepositoryUrl,
+  strictCspPolicy,
+  verifyHtml
+} from "../scripts/build.ts";
 
 const execFileAsync = promisify(execFile);
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -25,7 +31,7 @@ const VALID_OUTPUTS = [
   {
     type: "chunk",
     isEntry: true,
-    code: "globalThis.__SLIP39_APP__ = { marker: '</script>' };"
+    code: "const marker = '</script>';"
   },
   {
     type: "asset",
@@ -53,10 +59,8 @@ test("build creates a single offline HTML file", async () => {
   const html = await readFile(resolve(projectRoot, "dist/index.html"), "utf8");
 
   assert.match(html, /<style>[\s\S]*<\/style>/);
-  assert.match(
-    html,
-    /<script\b[^>]*id=["']app-source["'][^>]*>[\s\S]*__SLIP39_APP__[\s\S]*<\/script>/
-  );
+  assert.match(html, /<script\b[^>]*id=["']app-source["'][^>]*>[\s\S]*<\/script>/);
+  assert.doesNotMatch(html, /__SLIP39_APP__/);
   assert.match(html, /http-equiv=["']Content-Security-Policy["']/i);
   assert.match(html, new RegExp(strictCspPolicy.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(html, /default-src 'none'/);
@@ -66,7 +70,7 @@ test("build creates a single offline HTML file", async () => {
   assert.doesNotMatch(html, /<script[^>]+\ssrc=/i);
   assert.doesNotMatch(html, /<script[^>]+\stype=["']module["']/i);
   assert.doesNotMatch(html, /<link[^>]+rel=["']stylesheet["']/i);
-  assert.doesNotMatch(html, /https?:\/\//i);
+  assert.match(html, new RegExp(sourceRepositoryUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(html, /data-inline-(?:style|script)|__INLINE_/i);
   assert.doesNotMatch(html, /\b(?:localStorage|sessionStorage|indexedDB)\b|document\.cookie/);
   assert.doesNotMatch(html, /autocomplete=["'](?:current-password|new-password)["']/i);
@@ -126,6 +130,8 @@ test("inline HTML rendering requires build outputs and source placeholders", () 
 
 test("offline HTML verification rejects missing or external runtime content", () => {
   const html = validBuiltHtml();
+  assert.doesNotThrow(() => verifyHtml(html.replace("</body>", "<a>plain label</a></body>")));
+
   const cases: Array<[string, RegExp]> = [
     [html.replace(/<style>[\s\S]*?<\/style>/, ""), /inline CSS/],
     [html.replace(/<script id="app-source">[\s\S]*?<\/script>/, ""), /inline app script/],
@@ -142,7 +148,19 @@ test("offline HTML verification rejects missing or external runtime content", ()
     [html.replace("</body>", '<img src="logo.png"></body>'), /external runtime asset/],
     [
       html.replace("</body>", '<a href="https://example.invalid">x</a></body>'),
-      /external runtime asset/
+      /unexpected external URL/
+    ],
+    [html.replace("</body>", "https://example.invalid</body>"), /unexpected external URL/],
+    [
+      html.replace(
+        "</body>",
+        `<a href="${sourceRepositoryUrl}" target="_blank" rel="noopener">x</a></body>`
+      ),
+      /safe link attributes/
+    ],
+    [
+      html.replace("</body>", "<script>globalThis.__SLIP39_APP__ = {}</script></body>"),
+      /global test API/
     ],
     [html.replace("</body>", "<!-- __INLINE_CSP__ --></body>"), /unreplaced build placeholder/]
   ];

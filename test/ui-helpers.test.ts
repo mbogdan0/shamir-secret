@@ -64,13 +64,13 @@ test("secret input mode config exposes labels and placeholders", () => {
     label: "Master secret hex",
     placeholder: "At least 32 hex digits",
     helpText: "Whitespace is ignored; byte length must be even.",
-    modeHint: "Hex stores raw bytes. Text wraps UTF-8.",
+    modeHint: "Text mode uses an app-specific envelope; hex/bytes are the canonical portable form.",
     recoveryNote: "Raw bytes encoded as lowercase hex"
   });
   assert.equal(getSecretInputModeConfig(SECRET_INPUT_MODES.TEXT).label, "Master secret text");
   assert.equal(
     getSecretInputModeConfig(SECRET_INPUT_MODES.TEXT).modeHint,
-    "Hex stores raw bytes. Text wraps UTF-8."
+    "Text mode uses an app-specific envelope; hex/bytes are the canonical portable form."
   );
   assert.throws(() => getSecretInputModeConfig("unknown"), /Unsupported master secret input mode/);
 });
@@ -155,9 +155,10 @@ test("recovery output distinguishes text envelopes from raw bytes", async () => 
     text: "decoded text",
     hasText: true,
     hexHeading: "Recovered envelope hex",
-    hexHelpText: "Canonical envelope bytes for SLIP-0039 tools.",
+    hexHelpText:
+      "Text mode uses an app-specific envelope; hex/bytes are the canonical portable form.",
     message:
-      "Text envelope recovered. The hex remains the canonical SLIP-0039 master-secret bytes. SLIP-0039 cannot verify whether the passphrase was the intended one.",
+      "Text envelope recovered. Text mode uses an app-specific envelope; hex/bytes are the canonical portable form. SLIP-0039 cannot verify whether the passphrase was the intended one.",
     tone: "warning"
   });
 });

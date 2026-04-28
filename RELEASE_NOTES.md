@@ -1,5 +1,33 @@
 # Release Notes
 
+## v0.3.2 (2026-04-28)
+
+### Artifact Integrity
+
+- Artifact: `dist/index.html`
+- SHA-256: `5f4b1b8b6489a599495438f25cd059a03926e74660d1d69340f71bfbdd46b39c`
+- Verification command: `shasum -a 256 dist/index.html`
+
+### Notes
+
+- Removed the global test API from the production browser artifact.
+- Added bounded flexible recovery to abort excessive input lines and candidate combinations.
+- Added offline browser e2e coverage for file-based generate/recover with no network requests.
+- Clarified security-review status, browser-memory limits, clipboard trust boundaries, single-group generation scope, and the app-specific text envelope.
+
+## v0.3.1 (2026-04-27)
+
+### Artifact Integrity
+
+- Artifact: `dist/index.html`
+- SHA-256: `8fb4bad1b09b4e81155f89206d693b7083cde8d7dc0b39b2d0b36f121df217c1`
+- Verification command: `shasum -a 256 dist/index.html`
+
+### Notes
+
+- Raised local test coverage and added the README coverage badge.
+- Release artifact bytes are unchanged from `v0.3.0`.
+
 ## v0.3.0 (2026-04-27)
 
 ### Artifact Integrity

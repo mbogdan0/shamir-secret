@@ -14,6 +14,8 @@ const outputPath = resolve(projectRoot, "dist/index.html");
 const cspPlaceholderPattern = /^([ \t]*)<!--\s*__INLINE_CSP__\s*-->/m;
 export const strictCspPolicy =
   "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'";
+export const sourceRepositoryUrl = "https://github.com/mbogdan0/shamir-secret";
+const allowedExternalNavigationUrls = new Set([sourceRepositoryUrl]);
 
 export async function buildHtml(): Promise<string> {
   const template = await readFile(templatePath, "utf8");
@@ -97,16 +99,19 @@ export function verifyHtml(html: string): void {
   const externalAssetPatterns = [
     /<script\b[^>]*\bsrc\s*=/i,
     /<link\b[^>]*\brel=["']?stylesheet["']?[^>]*>/i,
-    /<img\b[^>]*\bsrc\s*=/i,
-    /https?:\/\//i
+    /<img\b[^>]*\bsrc\s*=/i
   ];
 
   if (!/<style\b[^>]*>[\s\S]*<\/style>/i.test(html)) {
     throw new Error("dist/index.html must contain inline CSS.");
   }
 
-  if (!/<script\b[^>]*>[\s\S]*__SLIP39_APP__[\s\S]*<\/script>/i.test(html)) {
+  if (!/<script\b[^>]*id=["']app-source["'][^>]*>[\s\S]*<\/script>/i.test(html)) {
     throw new Error("dist/index.html must contain the inline app script.");
+  }
+
+  if (html.includes("__SLIP39_APP__")) {
+    throw new Error("dist/index.html must not expose the global test API.");
   }
 
   if (!/http-equiv=["']Content-Security-Policy["']/i.test(html)) {
@@ -122,9 +127,45 @@ export function verifyHtml(html: string): void {
       throw new Error(`dist/index.html contains an external runtime asset: ${pattern}`);
     }
   }
+  verifyExternalUrls(html);
 
   if (/data-inline-(?:style|script)|__INLINE_/i.test(html)) {
     throw new Error("dist/index.html contains an unreplaced build placeholder.");
+  }
+}
+
+function attributeValue(tag: string, name: string): string | null {
+  const match = tag.match(new RegExp(`\\b${name}\\s*=\\s*(["'])(.*?)\\1`, "i"));
+  return match?.[2] ?? null;
+}
+
+function verifyExternalUrls(html: string): void {
+  const allowedAnchorHrefs = new Set<string>();
+  for (const match of html.matchAll(/<a\b[^>]*>/gi)) {
+    const tag = match[0];
+    const href = attributeValue(tag, "href");
+    if (!href || !/^https?:\/\//i.test(href)) {
+      continue;
+    }
+    if (!allowedExternalNavigationUrls.has(href)) {
+      throw new Error(`dist/index.html contains an unexpected external URL: ${href}`);
+    }
+
+    const target = attributeValue(tag, "target");
+    const relTokens = new Set((attributeValue(tag, "rel") ?? "").toLowerCase().split(/\s+/));
+    if (target !== "_blank" || !relTokens.has("noopener") || !relTokens.has("noreferrer")) {
+      throw new Error(
+        `dist/index.html external navigation link is missing safe link attributes: ${href}`
+      );
+    }
+    allowedAnchorHrefs.add(href);
+  }
+
+  for (const match of html.matchAll(/https?:\/\/[^\s"'<>]+/gi)) {
+    const url = match[0];
+    if (!allowedAnchorHrefs.has(url)) {
+      throw new Error(`dist/index.html contains an unexpected external URL: ${url}`);
+    }
   }
 }
 

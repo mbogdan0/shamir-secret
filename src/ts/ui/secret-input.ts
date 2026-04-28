@@ -39,16 +39,16 @@ const MODE_CONFIG: Readonly<Record<SecretInputMode, SecretInputModeConfig>> = Ob
     label: "Master secret hex",
     placeholder: "At least 32 hex digits",
     helpText: "Whitespace is ignored; byte length must be even.",
-    modeHint: "Hex stores raw bytes. Text wraps UTF-8.",
+    modeHint: "Text mode uses an app-specific envelope; hex/bytes are the canonical portable form.",
     recoveryNote: "Raw bytes encoded as lowercase hex"
   },
   [SECRET_INPUT_MODES.TEXT]: {
     label: "Master secret text",
     placeholder: "Enter text to protect",
     helpText: "Spacing and new lines are preserved.",
-    modeHint: "Hex stores raw bytes. Text wraps UTF-8.",
+    modeHint: "Text mode uses an app-specific envelope; hex/bytes are the canonical portable form.",
     recoveryNote:
-      "Text encoded as a SLIP39TXT v1 envelope; external tools recover envelope bytes as hex"
+      "Text mode uses an app-specific envelope; hex/bytes are the canonical portable form."
   }
 });
 

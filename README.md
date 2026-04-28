@@ -9,13 +9,13 @@
 [![Node.js >=22](https://img.shields.io/badge/node-%3E%3D22-339933)](./package.json)
 [![Runtime dependencies: 0](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](./package.json)
 
-Security-focused, offline-first SLIP-0039 share generation and recovery for browser environments.
+Offline-first SLIP-0039 share generation and recovery for browser environments.
 
-This project intentionally prioritizes security posture, implementation transparency, and protocol correctness over feature breadth.
+This project intentionally prioritizes implementation transparency, offline operation, and protocol correctness over feature breadth.
 
 **Live demo:** [mbogdan0.github.io/shamir-secret](https://mbogdan0.github.io/shamir-secret/)
 
-## 🔒 Security-Critical Summary (Read First)
+## 🔒 Operational Summary (Read First)
 
 - The production artifact is a single self-contained file: `dist/index.html`.
 - Runtime is designed for offline use, with no external runtime assets.
@@ -34,13 +34,22 @@ Critical operational caveats:
 - Clipboard contents are outside the app trust boundary after copy operations.
 - SLIP-0039 cannot confirm intended passphrase correctness.
 - This repository is not a formal third-party cryptographic audit.
+- Compromised operating systems, browsers, extensions, remote administration tools, or malware are outside the threat model.
+- For high-value secrets, prefer audited hardware-wallet or vendor recovery flows.
 
 ## 🚀 Quick Start (End User, No Build Required)
 
-1. Download `dist/index.html` from the latest GitHub release assets.
-2. Verify the published SHA-256 from [RELEASE_NOTES.md](./RELEASE_NOTES.md).
-3. Open the verified file locally in a trusted browser.
-4. Keep the machine offline during secret handling whenever possible.
+1. Open the latest GitHub release and confirm its tag matches the latest entry in [RELEASE_NOTES.md](./RELEASE_NOTES.md).
+2. Download `index.html` and `index.html.sha256` from that release's assets.
+3. Verify the artifact:
+
+   ```bash
+   shasum -a 256 -c index.html.sha256
+   ```
+
+4. Confirm the digest also matches the latest `dist/index.html` SHA-256 listed in [RELEASE_NOTES.md](./RELEASE_NOTES.md).
+5. Open the verified `index.html` locally in a trusted browser.
+6. Keep the machine offline during secret handling whenever possible.
 
 ## ⚠️ Threat Model and Trust Boundaries
 
@@ -55,10 +64,11 @@ Critical operational caveats:
 - Resistance to compromised hosts, malicious browser extensions, malware, or remote administration tooling.
 - Formal side-channel resistance guarantees in browser runtimes.
 - Hardware-wallet certification or formal cryptographic product assurance.
+- Formal third-party cryptographic audit or independent product certification.
 
-## ✅ Security Guarantees vs ❌ Non-Guarantees
+## ✅ Design Checks vs ❌ Non-Guarantees
 
-### What this codebase is designed to guarantee
+### What this codebase is designed to check
 
 - Standard-compliant SLIP-0039 share encoding/decoding behavior for project scope.
 - Deterministic validation errors for malformed inputs.
@@ -69,8 +79,10 @@ Critical operational caveats:
 
 - Total in-memory zeroization of secret material.
 - Protection once secrets leave the app boundary (clipboard, screenshots, system telemetry).
+- Protection from a compromised OS, browser, extension, debugger, remote desktop session, or malware.
 - Detection of wrong-but-plausible passphrase outputs beyond SLIP-0039 semantics.
 - Security claims equivalent to an independent external audit.
+- Suitability for high-value secrets compared with audited hardware-wallet or vendor flows.
 
 ## 🧮 Technical Foundation
 
@@ -93,7 +105,13 @@ Critical operational caveats:
 - Passphrase character set: printable ASCII.
 - Single-group generation policy with SLIP-0039 1-of-1 constraint when threshold is 1.
 
+### Generation scope
+
+Generation is intentionally limited to single-group T-of-N shares. SLIP-0039 also supports a two-level group/member scheme, but this app does not generate multi-group policies. Recovery remains compatible with existing valid SLIP-0039 shares that use group-policy metadata.
+
 ### Text envelope mode (`SLIP39TXT v1`)
+
+Text mode uses an app-specific envelope; hex/bytes are the canonical portable form.
 
 `text` mode wraps UTF-8 payloads into canonical master-secret bytes before SLIP-0039 processing.
 
@@ -108,8 +126,8 @@ Envelope structure includes:
 Interoperability implications:
 
 - Generated shares are still standard SLIP-0039 shares.
-- External tools recover canonical master-secret bytes (typically shown as hex).
-- Only this app's envelope decoder reconstructs the original text payload.
+- External tools recover canonical master-secret bytes, typically shown as hex.
+- The original text payload is reconstructed by this app or by a compatible implementation of the `SLIP39TXT v1` envelope.
 
 ## 🏗️ Build and Artifact Integrity
 
