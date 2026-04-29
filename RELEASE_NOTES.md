@@ -1,5 +1,18 @@
 # Release Notes
 
+## v0.3.4 (2026-04-29)
+
+### Artifact Integrity
+
+- Artifact: `dist/index.html`
+- SHA-256: `5f4b1b8b6489a599495438f25cd059a03926e74660d1d69340f71bfbdd46b39c`
+- Verification command: `shasum -a 256 dist/index.html`
+
+### Notes
+
+- Updated the README coverage badge to the current 99.70% line coverage.
+- Release artifact bytes are unchanged from `v0.3.2`.
+
 ## v0.3.3 (2026-04-29)
 
 ### Artifact Integrity

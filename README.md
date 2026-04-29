@@ -1,6 +1,6 @@
 # SLIP-0039 Shamir Secret
 
-![Test coverage: 98.16%](https://img.shields.io/badge/test%20coverage-98.16%25-brightgreen)
+![Test coverage: 99.70%](https://img.shields.io/badge/test%20coverage-99.70%25-brightgreen)
 [![CI](https://github.com/mbogdan0/shamir-secret/actions/workflows/ci.yml/badge.svg)](https://github.com/mbogdan0/shamir-secret/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/mbogdan0/shamir-secret/actions/workflows/codeql.yml/badge.svg)](https://github.com/mbogdan0/shamir-secret/actions/workflows/codeql.yml)
 [![Release Artifacts](https://github.com/mbogdan0/shamir-secret/actions/workflows/release.yml/badge.svg)](https://github.com/mbogdan0/shamir-secret/actions/workflows/release.yml)
