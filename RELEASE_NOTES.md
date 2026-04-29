@@ -1,5 +1,19 @@
 # Release Notes
 
+## v0.3.3 (2026-04-29)
+
+### Artifact Integrity
+
+- Artifact: `dist/index.html`
+- SHA-256: `5f4b1b8b6489a599495438f25cd059a03926e74660d1d69340f71bfbdd46b39c`
+- Verification command: `shasum -a 256 dist/index.html`
+
+### Notes
+
+- Added extensive deterministic text-to-shares coverage for SLIP-0039 text envelopes.
+- Covered threshold subsets, share metadata, negative recovery cases, malformed envelopes, and official vector non-text detection.
+- Raised overall coverage near 100%; release artifact bytes are unchanged from `v0.3.2`.
+
 ## v0.3.2 (2026-04-28)
 
 ### Artifact Integrity
