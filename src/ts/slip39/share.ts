@@ -8,7 +8,7 @@ import {
   RADIX_BITS
 } from "./constants.ts";
 import { createChecksum, customizationString, verifyChecksum } from "./checksum.ts";
-import { Slip39Error } from "./errors.ts";
+import { IncompatibleSharesError, InvalidChecksumError, MalformedMnemonicError } from "./errors.ts";
 import {
   bigIntToBytes,
   bitsToBytes,
@@ -111,14 +111,14 @@ export class Share {
     const mnemonicData = mnemonicToIndices(mnemonic);
 
     if (mnemonicData.length < MIN_MNEMONIC_LENGTH_WORDS) {
-      throw new Slip39Error(
+      throw new MalformedMnemonicError(
         `Invalid mnemonic length. Each mnemonic must be at least ${MIN_MNEMONIC_LENGTH_WORDS} words.`
       );
     }
 
     const paddingLength = (RADIX_BITS * (mnemonicData.length - METADATA_LENGTH_WORDS)) % 16;
     if (paddingLength > 8) {
-      throw new Slip39Error("Invalid mnemonic length.");
+      throw new MalformedMnemonicError("Invalid mnemonic length.");
     }
 
     const idExpData = mnemonicData.slice(0, ID_EXP_LENGTH_WORDS);
@@ -133,7 +133,7 @@ export class Share {
         .split(/\s+/)
         .slice(0, ID_EXP_LENGTH_WORDS + 2)
         .join(" ");
-      throw new Slip39Error(`Invalid mnemonic checksum for "${prefix} ...".`);
+      throw new InvalidChecksumError(`Invalid mnemonic checksum for "${prefix} ...".`);
     }
 
     const shareParamsData = mnemonicData.slice(ID_EXP_LENGTH_WORDS, ID_EXP_LENGTH_WORDS + 2);
@@ -142,10 +142,12 @@ export class Share {
       shareParams;
 
     if (encodedGroupCount < encodedGroupThreshold) {
-      throw new Slip39Error("Group threshold cannot be greater than group count.");
+      throw new IncompatibleSharesError("Group threshold cannot be greater than group count.");
     }
     if (groupIndex > encodedGroupCount) {
-      throw new Slip39Error("Group index cannot be greater than or equal to group count.");
+      throw new IncompatibleSharesError(
+        "Group index cannot be greater than or equal to group count."
+      );
     }
 
     const valueData = mnemonicData.slice(ID_EXP_LENGTH_WORDS + 2, -CHECKSUM_LENGTH_WORDS);

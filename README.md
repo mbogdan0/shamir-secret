@@ -1,6 +1,6 @@
 # SLIP-0039 Shamir Secret
 
-![Test coverage: 99.70%](https://img.shields.io/badge/test%20coverage-99.70%25-brightgreen)
+![Test coverage: 99.62%](https://img.shields.io/badge/test%20coverage-99.62%25-brightgreen)
 [![CI](https://github.com/mbogdan0/shamir-secret/actions/workflows/ci.yml/badge.svg)](https://github.com/mbogdan0/shamir-secret/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/mbogdan0/shamir-secret/actions/workflows/codeql.yml/badge.svg)](https://github.com/mbogdan0/shamir-secret/actions/workflows/codeql.yml)
 [![Release Artifacts](https://github.com/mbogdan0/shamir-secret/actions/workflows/release.yml/badge.svg)](https://github.com/mbogdan0/shamir-secret/actions/workflows/release.yml)
@@ -149,6 +149,8 @@ Core checks:
 ```bash
 npm run check
 npm run test:coverage
+npm run test:reference-interop
+npm run verify:official-vectors
 npm run audit
 npm run audit:prod
 npm run audit:signatures
@@ -158,7 +160,8 @@ npm run --silent sbom > sbom.cdx.json
 What validation covers:
 
 - Protocol behavior and error semantics.
-- Official/vector-based interoperability checks.
+- Official/vector-based interoperability checks with vendored Trezor vector hash verification.
+- Bidirectional interoperability with the pinned Trezor Python reference implementation.
 - Offline artifact invariants and CSP presence.
 - Native Node.js coverage thresholds for runtime source and build scripts.
 - Strict TypeScript contracts for runtime source, scripts, and tests.
@@ -177,11 +180,13 @@ Pre-commit enforcement:
 
 - Node.js `>=22` (pinned via `.nvmrc`)
 - npm with `engine-strict=true` (`.npmrc`)
+- Python 3.11+ for reference interoperability checks.
 
 ### Setup
 
 ```bash
 npm ci
+python3 -m pip install -r requirements-dev.txt
 ```
 
 ### Commands
@@ -192,6 +197,9 @@ npm run build        # Build strict offline artifact -> dist/index.html
 npm run preview      # Preview dist/ locally
 npm test             # Node test runner
 npm run test:coverage # Node test runner with coverage thresholds
+npm run test:reference-interop # Bidirectional Trezor Python reference interoperability
+npm run verify:official-vectors # Verify vendored Trezor vector fixture hash
+npm run verify:official-vectors:upstream # Manual upstream vector drift check
 npm run lint         # ESLint + Stylelint + Prettier check
 npm run typecheck    # Strict TypeScript validation
 npm run verify:build # Verify tracked dist/index.html matches source output

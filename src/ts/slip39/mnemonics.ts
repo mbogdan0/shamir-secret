@@ -5,7 +5,12 @@ import {
   MAX_RECOVERY_CANDIDATE_COMBINATIONS,
   MAX_RECOVERY_INPUT_LINES
 } from "./constants.ts";
-import { Slip39Error } from "./errors.ts";
+import {
+  DuplicateShareError,
+  IncompatibleSharesError,
+  InsufficientSharesError,
+  MalformedMnemonicError
+} from "./errors.ts";
 import type { RawShare } from "./gf256.ts";
 import { recoverSecret, splitSecret } from "./secret-sharing.ts";
 import { Share } from "./share.ts";
@@ -44,10 +49,12 @@ class ShareGroup {
 
   add(share: Share): void {
     if (this.groupKeyValue && this.groupKeyValue !== share.groupKey()) {
-      throw new Slip39Error("Invalid set of mnemonics. Group parameters do not match.");
+      throw new IncompatibleSharesError("Invalid set of mnemonics. Group parameters do not match.");
     }
     if (this.shares.has(share.index)) {
-      throw new Slip39Error("Invalid set of mnemonics. Member share indices must be unique.");
+      throw new DuplicateShareError(
+        "Invalid set of mnemonics. Member share indices must be unique."
+      );
     }
     this.groupKeyValue = share.groupKey();
     this.shares.set(share.index, share);
@@ -56,7 +63,7 @@ class ShareGroup {
   first(): Share {
     const share = this.shares.values().next().value;
     if (!share) {
-      throw new Slip39Error("The share group is empty.");
+      throw new InsufficientSharesError("The share group is empty.");
     }
     return share;
   }
@@ -82,7 +89,7 @@ function decodeMnemonics(mnemonics: string[]): Map<number, ShareGroup> {
     const share = Share.fromMnemonic(mnemonic);
     decodedCount += 1;
     if (commonKey && commonKey !== share.commonKey()) {
-      throw new Slip39Error(
+      throw new IncompatibleSharesError(
         `Invalid set of mnemonics. All mnemonics must begin with the same ${ID_EXP_LENGTH_WORDS} words and use the same group policy.`
       );
     }
@@ -92,13 +99,13 @@ function decodeMnemonics(mnemonics: string[]): Map<number, ShareGroup> {
     }
     const group = groups.get(share.groupIndex);
     if (!group) {
-      throw new Slip39Error("Invalid mnemonic group state.");
+      throw new IncompatibleSharesError("Invalid mnemonic group state.");
     }
     group.add(share);
   }
 
   if (decodedCount === 0) {
-    throw new Slip39Error("The list of mnemonics is empty.");
+    throw new InsufficientSharesError("The list of mnemonics is empty.");
   }
 
   return groups;
@@ -106,22 +113,22 @@ function decodeMnemonics(mnemonics: string[]): Map<number, ShareGroup> {
 
 async function recoverEms(groups: Map<number, ShareGroup>): Promise<EncryptedMasterSecret> {
   if (groups.size === 0) {
-    throw new Slip39Error("The set of shares is empty.");
+    throw new InsufficientSharesError("The set of shares is empty.");
   }
 
   const firstGroup = groups.values().next().value;
   if (!firstGroup) {
-    throw new Slip39Error("The set of shares is empty.");
+    throw new InsufficientSharesError("The set of shares is empty.");
   }
   const params = firstGroup.first();
 
   if (groups.size < params.groupThreshold) {
-    throw new Slip39Error(
+    throw new InsufficientSharesError(
       `Insufficient number of mnemonic groups. Required groups: ${params.groupThreshold}.`
     );
   }
   if (groups.size !== params.groupThreshold) {
-    throw new Slip39Error(
+    throw new IncompatibleSharesError(
       `Wrong number of mnemonic groups. Expected ${params.groupThreshold}, got ${groups.size}.`
     );
   }
@@ -129,9 +136,15 @@ async function recoverEms(groups: Map<number, ShareGroup>): Promise<EncryptedMas
   const groupShares: RawShare[] = [];
   for (const [groupIndex, group] of groups) {
     const memberThreshold = group.memberThreshold();
+    if (group.shares.size < memberThreshold) {
+      const prefix = group.first().words().slice(0, GROUP_PREFIX_LENGTH_WORDS).join(" ");
+      throw new InsufficientSharesError(
+        `Wrong number of mnemonics. Expected ${memberThreshold} shares starting with "${prefix} ...", got ${group.shares.size}.`
+      );
+    }
     if (group.shares.size !== memberThreshold) {
       const prefix = group.first().words().slice(0, GROUP_PREFIX_LENGTH_WORDS).join(" ");
-      throw new Slip39Error(
+      throw new IncompatibleSharesError(
         `Wrong number of mnemonics. Expected ${memberThreshold} shares starting with "${prefix} ...", got ${group.shares.size}.`
       );
     }
@@ -269,7 +282,9 @@ function parseFlexibleMnemonics(mnemonics: string[]): Map<number, FlexibleGroup>
   const inputLines = mnemonics.filter((mnemonic) => mnemonic.trim()).length;
 
   if (inputLines > MAX_RECOVERY_INPUT_LINES) {
-    throw new Slip39Error(`Too many mnemonic share lines. Maximum is ${MAX_RECOVERY_INPUT_LINES}.`);
+    throw new MalformedMnemonicError(
+      `Too many mnemonic share lines. Maximum is ${MAX_RECOVERY_INPUT_LINES}.`
+    );
   }
 
   for (const mnemonic of mnemonics) {
@@ -280,13 +295,13 @@ function parseFlexibleMnemonics(mnemonics: string[]): Map<number, FlexibleGroup>
     const share = Share.fromMnemonic(mnemonic);
     const canonicalMnemonic = share.toMnemonic();
     if (seenMnemonics.has(canonicalMnemonic)) {
-      continue;
+      throw new DuplicateShareError("Duplicate mnemonic share.");
     }
     seenMnemonics.add(canonicalMnemonic);
     decodedCount += 1;
 
     if (commonKey && commonKey !== share.commonKey()) {
-      throw new Slip39Error(
+      throw new IncompatibleSharesError(
         `Invalid set of mnemonics. All mnemonics must begin with the same ${ID_EXP_LENGTH_WORDS} words and use the same group policy.`
       );
     }
@@ -301,20 +316,20 @@ function parseFlexibleMnemonics(mnemonics: string[]): Map<number, FlexibleGroup>
 
     const group = groups.get(share.groupIndex);
     if (!group) {
-      throw new Slip39Error("Invalid mnemonic group state.");
+      throw new IncompatibleSharesError("Invalid mnemonic group state.");
     }
     if (group.groupKey !== share.groupKey()) {
-      throw new Slip39Error("Invalid set of mnemonics. Group parameters do not match.");
+      throw new IncompatibleSharesError("Invalid set of mnemonics. Group parameters do not match.");
     }
 
     const existing = group.sharesByMemberIndex.get(share.index);
     if (existing) {
       if (existing.mnemonic !== canonicalMnemonic) {
-        throw new Slip39Error(
+        throw new DuplicateShareError(
           `Conflicting mnemonic shares for group ${share.groupIndex + 1}, member ${share.index + 1}.`
         );
       }
-      continue;
+      throw new DuplicateShareError("Duplicate mnemonic share.");
     }
 
     group.sharesByMemberIndex.set(share.index, {
@@ -324,7 +339,7 @@ function parseFlexibleMnemonics(mnemonics: string[]): Map<number, FlexibleGroup>
   }
 
   if (decodedCount === 0) {
-    throw new Slip39Error("The list of mnemonics is empty.");
+    throw new InsufficientSharesError("The list of mnemonics is empty.");
   }
 
   return groups;
@@ -337,11 +352,11 @@ export async function combineMnemonicsFlexible(
   const groups = parseFlexibleMnemonics(mnemonics);
   const firstGroup = groups.values().next().value;
   if (!firstGroup) {
-    throw new Slip39Error("The list of mnemonics is empty.");
+    throw new InsufficientSharesError("The list of mnemonics is empty.");
   }
   const firstEntry = firstGroup.sharesByMemberIndex.values().next().value;
   if (!firstEntry) {
-    throw new Slip39Error("The list of mnemonics is empty.");
+    throw new InsufficientSharesError("The list of mnemonics is empty.");
   }
   const firstShare = firstEntry.share;
   const groupThreshold = firstShare.groupThreshold;
@@ -349,7 +364,7 @@ export async function combineMnemonicsFlexible(
     .map(([, group]) => {
       const firstMemberEntry = group.sharesByMemberIndex.values().next().value;
       if (!firstMemberEntry) {
-        throw new Slip39Error("Invalid mnemonic group state.");
+        throw new IncompatibleSharesError("Invalid mnemonic group state.");
       }
       const memberThreshold = firstMemberEntry.share.memberThreshold;
       const shares = [...group.sharesByMemberIndex.values()];
@@ -361,7 +376,7 @@ export async function combineMnemonicsFlexible(
     .filter((group) => group.shares.length >= group.memberThreshold);
 
   if (completeGroups.length < groupThreshold) {
-    throw new Slip39Error(
+    throw new InsufficientSharesError(
       `Insufficient number of mnemonic groups. Required groups: ${groupThreshold}.`
     );
   }
@@ -371,7 +386,7 @@ export async function combineMnemonicsFlexible(
   for (const groupSet of combinations(completeGroups, groupThreshold)) {
     for (const memberCombinationSet of candidateMemberSets(groupSet)) {
       if (attemptCount >= MAX_RECOVERY_CANDIDATE_COMBINATIONS) {
-        throw new Slip39Error("Too many candidate combinations.");
+        throw new IncompatibleSharesError("Too many candidate combinations.");
       }
       attemptCount += 1;
       const candidateMnemonics = memberCombinationSet.flat();
@@ -385,16 +400,16 @@ export async function combineMnemonicsFlexible(
   }
 
   if (errorCounts.size === 0) {
-    throw new Slip39Error("No valid threshold-complete mnemonic subset was found.");
+    throw new IncompatibleSharesError("No valid threshold-complete mnemonic subset was found.");
   }
   if (errorCounts.size === 1) {
     const onlyMessage =
       [...errorCounts.keys()][0] ?? "No valid threshold-complete mnemonic subset was found.";
-    throw new Slip39Error(onlyMessage);
+    throw new IncompatibleSharesError(onlyMessage);
   }
   const ranked = [...errorCounts.entries()].sort((a, b) => b[1] - a[1]);
   const summary = ranked.map(([message, count]) => `  - ${message} (x${count} times)`).join("\n");
-  throw new Slip39Error(
+  throw new IncompatibleSharesError(
     `No valid threshold-complete mnemonic subset was found.\nTried ${attemptCount} combinations. Most common errors:\n${summary}`
   );
 }

@@ -1,4 +1,4 @@
-import { Slip39Error } from "./errors.ts";
+import { InvalidSecretLengthError } from "./errors.ts";
 import { validateMasterSecretBytes } from "./validation.ts";
 
 const HEX_ALPHABET = "0123456789abcdef";
@@ -18,13 +18,15 @@ export function compactHex(hex: string): string {
 export function normalizeHex(hex: string): string {
   const normalized = compactHex(hex);
   if (normalized.length === 0) {
-    throw new Slip39Error("The master secret hex is empty.");
+    throw new InvalidSecretLengthError("The master secret hex is empty.");
   }
   if (/[^0-9a-f]/i.test(normalized)) {
-    throw new Slip39Error("The master secret hex can contain only hex digits and whitespace.");
+    throw new InvalidSecretLengthError(
+      "The master secret hex can contain only hex digits and whitespace."
+    );
   }
   if (normalized.length % 2 !== 0) {
-    throw new Slip39Error(
+    throw new InvalidSecretLengthError(
       "The master secret hex has an odd number of digits. Add or remove one hex digit intentionally; this app will not auto-pad."
     );
   }

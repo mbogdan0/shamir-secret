@@ -154,7 +154,7 @@ test("flexible recovery searches surplus groups and reports incomplete sets", as
   assert.equal(
     bytesToHex(
       await combineMnemonicsFlexible(
-        ["", EXTRA_COMPLETE_GROUP_SHARE, ...MULTI_GROUP_SHARES, MULTI_GROUP_SHARES[4]],
+        ["", EXTRA_COMPLETE_GROUP_SHARE, ...MULTI_GROUP_SHARES],
         "TREZOR"
       )
     ),

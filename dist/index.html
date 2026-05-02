@@ -933,9 +933,18 @@ button:disabled {
 	var Slip39Error = class extends Error {
 		constructor(message) {
 			super(message);
-			this.name = "Slip39Error";
+			this.name = new.target.name;
 		}
 	};
+	var MalformedMnemonicError = class extends Slip39Error {};
+	var InvalidChecksumError = class extends Slip39Error {};
+	var IncompatibleSharesError = class extends Slip39Error {};
+	var DuplicateShareError = class extends Slip39Error {};
+	var InsufficientSharesError = class extends Slip39Error {};
+	var InvalidThresholdError = class extends Slip39Error {};
+	var InvalidSecretLengthError = class extends Slip39Error {};
+	var RecoveryDigestMismatchError = class extends Slip39Error {};
+	var UnsupportedSlip39FeatureError = class extends Slip39Error {};
 	//#endregion
 	//#region src/ts/slip39/wordlist.ts
 	var SLIP39_WORDS = "academic acid acne acquire acrobat activity actress adapt adequate adjust admit adorn adult advance advocate afraid again agency agree aide aircraft airline airport ajar alarm album alcohol alien alive alpha already alto aluminum always amazing ambition amount amuse analysis anatomy ancestor ancient angel angry animal answer antenna anxiety apart aquatic arcade arena argue armed artist artwork aspect auction august aunt average aviation avoid award away axis axle beam beard beaver become bedroom behavior being believe belong benefit best beyond bike biology birthday bishop black blanket blessing blimp blind blue body bolt boring born both boundary bracelet branch brave breathe briefing broken brother browser bucket budget building bulb bulge bumpy bundle burden burning busy buyer cage calcium camera campus canyon capacity capital capture carbon cards careful cargo carpet carve category cause ceiling center ceramic champion change charity check chemical chest chew chubby cinema civil class clay cleanup client climate clinic clock clogs closet clothes club cluster coal coastal coding column company corner costume counter course cover cowboy cradle craft crazy credit cricket criminal crisis critical crowd crucial crunch crush crystal cubic cultural curious curly custody cylinder daisy damage dance darkness database daughter deadline deal debris debut decent decision declare decorate decrease deliver demand density deny depart depend depict deploy describe desert desire desktop destroy detailed detect device devote diagnose dictate diet dilemma diminish dining diploma disaster discuss disease dish dismiss display distance dive divorce document domain domestic dominant dough downtown dragon dramatic dream dress drift drink drove drug dryer duckling duke duration dwarf dynamic early earth easel easy echo eclipse ecology edge editor educate either elbow elder election elegant element elephant elevator elite else email emerald emission emperor emphasis employer empty ending endless endorse enemy energy enforce engage enjoy enlarge entrance envelope envy epidemic episode equation equip eraser erode escape estate estimate evaluate evening evidence evil evoke exact example exceed exchange exclude excuse execute exercise exhaust exotic expand expect explain express extend extra eyebrow facility fact failure faint fake false family famous fancy fangs fantasy fatal fatigue favorite fawn fiber fiction filter finance findings finger firefly firm fiscal fishing fitness flame flash flavor flea flexible flip float floral fluff focus forbid force forecast forget formal fortune forward founder fraction fragment frequent freshman friar fridge friendly frost froth frozen fumes funding furl fused galaxy game garbage garden garlic gasoline gather general genius genre genuine geology gesture glad glance glasses glen glimpse goat golden graduate grant grasp gravity gray greatest grief grill grin grocery gross group grownup grumpy guard guest guilt guitar gums hairy hamster hand hanger harvest have havoc hawk hazard headset health hearing heat helpful herald herd hesitate hobo holiday holy home hormone hospital hour huge human humidity hunting husband hush husky hybrid idea identify idle image impact imply improve impulse include income increase index indicate industry infant inform inherit injury inmate insect inside install intend intimate invasion involve iris island isolate item ivory jacket jerky jewelry join judicial juice jump junction junior junk jury justice kernel keyboard kidney kind kitchen knife knit laden ladle ladybug lair lamp language large laser laundry lawsuit leader leaf learn leaves lecture legal legend legs lend length level liberty library license lift likely lilac lily lips liquid listen literary living lizard loan lobe location losing loud loyalty luck lunar lunch lungs luxury lying lyrics machine magazine maiden mailman main makeup making mama manager mandate mansion manual marathon march market marvel mason material math maximum mayor meaning medal medical member memory mental merchant merit method metric midst mild military mineral minister miracle mixed mixture mobile modern modify moisture moment morning mortgage mother mountain mouse move much mule multiple muscle museum music mustang nail national necklace negative nervous network news nuclear numb numerous nylon oasis obesity object observe obtain ocean often olympic omit oral orange orbit order ordinary organize ounce oven overall owner paces pacific package paid painting pajamas pancake pants papa paper parcel parking party patent patrol payment payroll peaceful peanut peasant pecan penalty pencil percent perfect permit petition phantom pharmacy photo phrase physics pickup picture piece pile pink pipeline pistol pitch plains plan plastic platform playoff pleasure plot plunge practice prayer preach predator pregnant premium prepare presence prevent priest primary priority prisoner privacy prize problem process profile program promise prospect provide prune public pulse pumps punish puny pupal purchase purple python quantity quarter quick quiet race racism radar railroad rainbow raisin random ranked rapids raspy reaction realize rebound rebuild recall receiver recover regret regular reject relate remember remind remove render repair repeat replace require rescue research resident response result retailer retreat reunion revenue review reward rhyme rhythm rich rival river robin rocky romantic romp roster round royal ruin ruler rumor sack safari salary salon salt satisfy satoshi saver says scandal scared scatter scene scholar science scout scramble screw script scroll seafood season secret security segment senior shadow shaft shame shaped sharp shelter sheriff short should shrimp sidewalk silent silver similar simple single sister skin skunk slap slavery sled slice slim slow slush smart smear smell smirk smith smoking smug snake snapshot sniff society software soldier solution soul source space spark speak species spelling spend spew spider spill spine spirit spit spray sprinkle square squeeze stadium staff standard starting station stay steady step stick stilt story strategy strike style subject submit sugar suitable sunlight superior surface surprise survive sweater swimming swing switch symbolic sympathy syndrome system tackle tactics tadpole talent task taste taught taxi teacher teammate teaspoon temple tenant tendency tension terminal testify texture thank that theater theory therapy thorn threaten thumb thunder ticket tidy timber timely ting tofu together tolerate total toxic tracks traffic training transfer trash traveler treat trend trial tricycle trip triumph trouble true trust twice twin type typical ugly ultimate umbrella uncover undergo unfair unfold unhappy union universe unkind unknown unusual unwrap upgrade upstairs username usher usual valid valuable vampire vanish various vegan velvet venture verdict verify very veteran vexed victim video view vintage violence viral visitor visual vitamins vocal voice volume voter voting walnut warmth warn watch wavy wealthy weapon webcam welcome welfare western width wildlife window wine wireless wisdom withdraw wits wolf woman work worthy wrap wrist writing wrote year yelp yield yoga zero".split(" ");
@@ -994,7 +1003,7 @@ button:disabled {
 			output[index] = Number(current & 255n);
 			current >>= 8n;
 		}
-		if (current !== 0n) throw new Slip39Error("Invalid mnemonic padding.");
+		if (current !== 0n) throw new MalformedMnemonicError("Invalid mnemonic padding.");
 		return output;
 	}
 	function intToIndices(value, length, radixBits = 10) {
@@ -1005,13 +1014,13 @@ button:disabled {
 			output[index] = Number(current & mask);
 			current >>= BigInt(radixBits);
 		}
-		if (current !== 0n) throw new Slip39Error("Integer does not fit in the requested word count.");
+		if (current !== 0n) throw new MalformedMnemonicError("Integer does not fit in the requested word count.");
 		return output;
 	}
 	function intFromIndices(indices, radixBits = 10) {
 		let value = 0n;
 		for (const index of indices) {
-			if (!Number.isInteger(index) || index < 0 || index >= 1 << radixBits) throw new Slip39Error("Invalid word index.");
+			if (!Number.isInteger(index) || index < 0 || index >= 1 << radixBits) throw new MalformedMnemonicError("Invalid word index.");
 			value = value << BigInt(radixBits) | BigInt(index);
 		}
 		return value;
@@ -1024,10 +1033,10 @@ button:disabled {
 	}
 	function mnemonicToIndices(mnemonic) {
 		const words = mnemonic.trim().toLowerCase().split(/\s+/).filter(Boolean);
-		if (words.length === 0) throw new Slip39Error("The mnemonic is empty.");
+		if (words.length === 0) throw new MalformedMnemonicError("The mnemonic is empty.");
 		return words.map((word) => {
 			const index = WORD_INDEX.get(word);
-			if (index === void 0) throw new Slip39Error(`Unknown SLIP-0039 word: "${word}".`);
+			if (index === void 0) throw new MalformedMnemonicError(`Unknown SLIP-0039 word: "${word}".`);
 			return index;
 		});
 	}
@@ -1124,11 +1133,11 @@ button:disabled {
 		const seen = /* @__PURE__ */ new Set();
 		const lengths = /* @__PURE__ */ new Set();
 		for (const share of shares) {
-			if (seen.has(share.x)) throw new Slip39Error("Share indices must be unique.");
+			if (seen.has(share.x)) throw new DuplicateShareError("Share indices must be unique.");
 			seen.add(share.x);
 			lengths.add(share.data.length);
 		}
-		if (lengths.size !== 1) throw new Slip39Error("All share values must have the same length.");
+		if (lengths.size !== 1) throw new IncompatibleSharesError("All share values must have the same length.");
 		for (const share of shares) if (share.x === x) return new Uint8Array(share.data);
 		const [length] = lengths;
 		const logProduct = shares.reduce((sum, share) => sum + LOG_TABLE[share.x ^ x], 0);
@@ -1147,30 +1156,30 @@ button:disabled {
 	function validatePassphrase(passphrase) {
 		for (let index = 0; index < passphrase.length; index += 1) {
 			const codePoint = passphrase.charCodeAt(index);
-			if (codePoint < 32 || codePoint > 126) throw new Slip39Error("The passphrase must contain only printable ASCII characters.");
+			if (codePoint < 32 || codePoint > 126) throw new MalformedMnemonicError("The passphrase must contain only printable ASCII characters.");
 		}
 		return asciiToBytes(passphrase);
 	}
 	function validateIdentifier(identifier) {
-		if (!Number.isInteger(identifier) || identifier < 0 || identifier >= 32768) throw new Slip39Error("The SLIP-0039 identifier must be an integer from 0 to 32767.");
+		if (!Number.isInteger(identifier) || identifier < 0 || identifier >= 32768) throw new InvalidThresholdError("The SLIP-0039 identifier must be an integer from 0 to 32767.");
 	}
 	function validateMasterSecretBytes(masterSecret) {
-		if (Object.prototype.toString.call(masterSecret) !== "[object Uint8Array]") throw new Slip39Error("The master secret must be bytes.");
-		if (masterSecret.length * 8 < 128) throw new Slip39Error("The master secret must be at least 16 bytes.");
-		if (masterSecret.length % 2 !== 0) throw new Slip39Error("The master secret byte length must be a multiple of 2. Add or remove a full byte intentionally; this app will not auto-pad.");
+		if (Object.prototype.toString.call(masterSecret) !== "[object Uint8Array]") throw new InvalidSecretLengthError("The master secret must be bytes.");
+		if (masterSecret.length * 8 < 128) throw new InvalidSecretLengthError("The master secret must be at least 16 bytes.");
+		if (masterSecret.length % 2 !== 0) throw new InvalidSecretLengthError("The master secret byte length must be a multiple of 2. Add or remove a full byte intentionally; this app will not auto-pad.");
 	}
 	function validateShareParameters(threshold, shareCount) {
-		if (!Number.isInteger(threshold) || threshold < 1) throw new Slip39Error("Threshold must be a positive integer.");
-		if (!Number.isInteger(shareCount) || shareCount < 1) throw new Slip39Error("Total shares must be a positive integer.");
-		if (threshold > shareCount) throw new Slip39Error("Threshold must not exceed total shares.");
-		if (shareCount > 16) throw new Slip39Error(`Total shares must not exceed 16.`);
+		if (!Number.isInteger(threshold) || threshold < 1) throw new InvalidThresholdError("Threshold must be a positive integer.");
+		if (!Number.isInteger(shareCount) || shareCount < 1) throw new InvalidThresholdError("Total shares must be a positive integer.");
+		if (threshold > shareCount) throw new InvalidThresholdError("Threshold must not exceed total shares.");
+		if (shareCount > 16) throw new InvalidThresholdError(`Total shares must not exceed 16.`);
 	}
 	function validateSingleGroupParameters(threshold, shareCount) {
 		validateShareParameters(threshold, shareCount);
-		if (threshold === 1 && shareCount > 1) throw new Slip39Error("SLIP-0039 requires 1-of-1 when the member threshold is 1.");
+		if (threshold === 1 && shareCount > 1) throw new UnsupportedSlip39FeatureError("SLIP-0039 requires 1-of-1 when the member threshold is 1.");
 	}
 	function validateIterationExponent(iterationExponent) {
-		if (!Number.isInteger(iterationExponent) || iterationExponent < 0 || iterationExponent > 15) throw new Slip39Error("Iteration exponent must be an integer from 0 to 15.");
+		if (!Number.isInteger(iterationExponent) || iterationExponent < 0 || iterationExponent > 15) throw new InvalidThresholdError("Iteration exponent must be an integer from 0 to 15.");
 	}
 	//#endregion
 	//#region src/ts/slip39/hex.ts
@@ -1185,9 +1194,9 @@ button:disabled {
 	}
 	function normalizeHex(hex) {
 		const normalized = compactHex(hex);
-		if (normalized.length === 0) throw new Slip39Error("The master secret hex is empty.");
-		if (/[^0-9a-f]/i.test(normalized)) throw new Slip39Error("The master secret hex can contain only hex digits and whitespace.");
-		if (normalized.length % 2 !== 0) throw new Slip39Error("The master secret hex has an odd number of digits. Add or remove one hex digit intentionally; this app will not auto-pad.");
+		if (normalized.length === 0) throw new InvalidSecretLengthError("The master secret hex is empty.");
+		if (/[^0-9a-f]/i.test(normalized)) throw new InvalidSecretLengthError("The master secret hex can contain only hex digits and whitespace.");
+		if (normalized.length % 2 !== 0) throw new InvalidSecretLengthError("The master secret hex has an odd number of digits. Add or remove one hex digit intentionally; this app will not auto-pad.");
 		return normalized;
 	}
 	function hexToBytes(hex) {
@@ -1212,7 +1221,7 @@ button:disabled {
 		return concatBytes(asciiToBytes(CUSTOMIZATION_STRING_ORIG), idBytes);
 	}
 	async function encrypt(masterSecret, passphraseBytes, iterationExponent, identifier, extendable) {
-		if (masterSecret.length % 2 !== 0) throw new Slip39Error("The master secret byte length must be even.");
+		if (masterSecret.length % 2 !== 0) throw new InvalidSecretLengthError("The master secret byte length must be even.");
 		let left = masterSecret.slice(0, masterSecret.length / 2);
 		let right = masterSecret.slice(masterSecret.length / 2);
 		const salt = saltFor(identifier, extendable);
@@ -1230,7 +1239,7 @@ button:disabled {
 		}
 	}
 	async function decrypt(encryptedMasterSecret, passphraseBytes, iterationExponent, identifier, extendable) {
-		if (encryptedMasterSecret.length % 2 !== 0) throw new Slip39Error("The encrypted master secret byte length must be even.");
+		if (encryptedMasterSecret.length % 2 !== 0) throw new InvalidSecretLengthError("The encrypted master secret byte length must be even.");
 		let left = encryptedMasterSecret.slice(0, encryptedMasterSecret.length / 2);
 		let right = encryptedMasterSecret.slice(encryptedMasterSecret.length / 2);
 		const salt = saltFor(identifier, extendable);
@@ -1257,8 +1266,8 @@ button:disabled {
 	}
 	async function splitSecret(threshold, shareCount, sharedSecret) {
 		validateShareParameters(threshold, shareCount);
-		if (Object.prototype.toString.call(sharedSecret) !== "[object Uint8Array]") throw new Slip39Error("Shared secret must be a Uint8Array.");
-		if (threshold > 1 && sharedSecret.length < 5) throw new Slip39Error(`Shared secret must be at least 5 bytes when threshold > 1.`);
+		if (Object.prototype.toString.call(sharedSecret) !== "[object Uint8Array]") throw new InvalidSecretLengthError("Shared secret must be a Uint8Array.");
+		if (threshold > 1 && sharedSecret.length < 5) throw new InvalidSecretLengthError(`Shared secret must be at least 5 bytes when threshold > 1.`);
 		if (threshold === 1) return Array.from({ length: shareCount }, (_, index) => ({
 			x: index,
 			data: new Uint8Array(sharedSecret)
@@ -1289,6 +1298,8 @@ button:disabled {
 		return shares;
 	}
 	async function recoverSecret(threshold, shares) {
+		if (!Number.isInteger(threshold) || threshold < 1) throw new InvalidThresholdError("Threshold must be a positive integer.");
+		if (shares.length < threshold) throw new InsufficientSharesError(`Insufficient shares. Required shares: ${threshold}, got ${shares.length}.`);
 		if (threshold === 1) return new Uint8Array(shares[0].data);
 		const sharedSecret = interpolate(shares, 255);
 		const digestShare = interpolate(shares, 254);
@@ -1296,7 +1307,7 @@ button:disabled {
 		const randomPart = digestShare.slice(4);
 		if (!bytesEqual(digest, await createDigest(randomPart, sharedSecret))) {
 			zeroize(digestShare, digest, randomPart, sharedSecret);
-			throw new Slip39Error("Invalid digest of the shared secret.");
+			throw new RecoveryDigestMismatchError("Invalid digest of the shared secret.");
 		}
 		zeroize(digestShare, digest, randomPart);
 		return sharedSecret;
@@ -1370,18 +1381,18 @@ button:disabled {
 		}
 		static fromMnemonic(mnemonic) {
 			const mnemonicData = mnemonicToIndices(mnemonic);
-			if (mnemonicData.length < MIN_MNEMONIC_LENGTH_WORDS) throw new Slip39Error(`Invalid mnemonic length. Each mnemonic must be at least ${MIN_MNEMONIC_LENGTH_WORDS} words.`);
+			if (mnemonicData.length < MIN_MNEMONIC_LENGTH_WORDS) throw new MalformedMnemonicError(`Invalid mnemonic length. Each mnemonic must be at least ${MIN_MNEMONIC_LENGTH_WORDS} words.`);
 			const paddingLength = 10 * (mnemonicData.length - METADATA_LENGTH_WORDS) % 16;
-			if (paddingLength > 8) throw new Slip39Error("Invalid mnemonic length.");
+			if (paddingLength > 8) throw new MalformedMnemonicError("Invalid mnemonic length.");
 			const idExpData = mnemonicData.slice(0, 2);
 			const idExpInt = Number(intFromIndices(idExpData));
 			const identifier = idExpInt >> 5;
 			const extendable = Boolean(idExpInt >> 4 & 1);
 			const iterationExponent = idExpInt & 15;
-			if (!verifyChecksum(mnemonicData, customizationString(extendable))) throw new Slip39Error(`Invalid mnemonic checksum for "${mnemonic.trim().split(/\s+/).slice(0, 4).join(" ")} ...".`);
+			if (!verifyChecksum(mnemonicData, customizationString(extendable))) throw new InvalidChecksumError(`Invalid mnemonic checksum for "${mnemonic.trim().split(/\s+/).slice(0, 4).join(" ")} ...".`);
 			const [groupIndex, encodedGroupThreshold, encodedGroupCount, index, encodedMemberThreshold] = intToIndices(intFromIndices(mnemonicData.slice(2, 4)), 5, 4);
-			if (encodedGroupCount < encodedGroupThreshold) throw new Slip39Error("Group threshold cannot be greater than group count.");
-			if (groupIndex > encodedGroupCount) throw new Slip39Error("Group index cannot be greater than or equal to group count.");
+			if (encodedGroupCount < encodedGroupThreshold) throw new IncompatibleSharesError("Group threshold cannot be greater than group count.");
+			if (groupIndex > encodedGroupCount) throw new IncompatibleSharesError("Group index cannot be greater than or equal to group count.");
 			const valueData = mnemonicData.slice(4, -3);
 			const valueByteCount = bitsToBytes(10 * valueData.length - paddingLength);
 			const value = bigIntToBytes(intFromIndices(valueData), valueByteCount);
@@ -1394,14 +1405,14 @@ button:disabled {
 		shares = /* @__PURE__ */ new Map();
 		groupKeyValue = null;
 		add(share) {
-			if (this.groupKeyValue && this.groupKeyValue !== share.groupKey()) throw new Slip39Error("Invalid set of mnemonics. Group parameters do not match.");
-			if (this.shares.has(share.index)) throw new Slip39Error("Invalid set of mnemonics. Member share indices must be unique.");
+			if (this.groupKeyValue && this.groupKeyValue !== share.groupKey()) throw new IncompatibleSharesError("Invalid set of mnemonics. Group parameters do not match.");
+			if (this.shares.has(share.index)) throw new DuplicateShareError("Invalid set of mnemonics. Member share indices must be unique.");
 			this.groupKeyValue = share.groupKey();
 			this.shares.set(share.index, share);
 		}
 		first() {
 			const share = this.shares.values().next().value;
-			if (!share) throw new Slip39Error("The share group is empty.");
+			if (!share) throw new InsufficientSharesError("The share group is empty.");
 			return share;
 		}
 		memberThreshold() {
@@ -1422,27 +1433,28 @@ button:disabled {
 			if (!mnemonic.trim()) continue;
 			const share = Share.fromMnemonic(mnemonic);
 			decodedCount += 1;
-			if (commonKey && commonKey !== share.commonKey()) throw new Slip39Error(`Invalid set of mnemonics. All mnemonics must begin with the same 2 words and use the same group policy.`);
+			if (commonKey && commonKey !== share.commonKey()) throw new IncompatibleSharesError(`Invalid set of mnemonics. All mnemonics must begin with the same 2 words and use the same group policy.`);
 			commonKey = share.commonKey();
 			if (!groups.has(share.groupIndex)) groups.set(share.groupIndex, new ShareGroup());
 			const group = groups.get(share.groupIndex);
-			if (!group) throw new Slip39Error("Invalid mnemonic group state.");
+			if (!group) throw new IncompatibleSharesError("Invalid mnemonic group state.");
 			group.add(share);
 		}
-		if (decodedCount === 0) throw new Slip39Error("The list of mnemonics is empty.");
+		if (decodedCount === 0) throw new InsufficientSharesError("The list of mnemonics is empty.");
 		return groups;
 	}
 	async function recoverEms(groups) {
-		if (groups.size === 0) throw new Slip39Error("The set of shares is empty.");
+		if (groups.size === 0) throw new InsufficientSharesError("The set of shares is empty.");
 		const firstGroup = groups.values().next().value;
-		if (!firstGroup) throw new Slip39Error("The set of shares is empty.");
+		if (!firstGroup) throw new InsufficientSharesError("The set of shares is empty.");
 		const params = firstGroup.first();
-		if (groups.size < params.groupThreshold) throw new Slip39Error(`Insufficient number of mnemonic groups. Required groups: ${params.groupThreshold}.`);
-		if (groups.size !== params.groupThreshold) throw new Slip39Error(`Wrong number of mnemonic groups. Expected ${params.groupThreshold}, got ${groups.size}.`);
+		if (groups.size < params.groupThreshold) throw new InsufficientSharesError(`Insufficient number of mnemonic groups. Required groups: ${params.groupThreshold}.`);
+		if (groups.size !== params.groupThreshold) throw new IncompatibleSharesError(`Wrong number of mnemonic groups. Expected ${params.groupThreshold}, got ${groups.size}.`);
 		const groupShares = [];
 		for (const [groupIndex, group] of groups) {
 			const memberThreshold = group.memberThreshold();
-			if (group.shares.size !== memberThreshold) throw new Slip39Error(`Wrong number of mnemonics. Expected ${memberThreshold} shares starting with "${group.first().words().slice(0, 3).join(" ")} ...", got ${group.shares.size}.`);
+			if (group.shares.size < memberThreshold) throw new InsufficientSharesError(`Wrong number of mnemonics. Expected ${memberThreshold} shares starting with "${group.first().words().slice(0, 3).join(" ")} ...", got ${group.shares.size}.`);
+			if (group.shares.size !== memberThreshold) throw new IncompatibleSharesError(`Wrong number of mnemonics. Expected ${memberThreshold} shares starting with "${group.first().words().slice(0, 3).join(" ")} ...", got ${group.shares.size}.`);
 			groupShares.push({
 				x: groupIndex,
 				data: await recoverSecret(memberThreshold, group.rawShares())
@@ -1519,56 +1531,56 @@ button:disabled {
 		const seenMnemonics = /* @__PURE__ */ new Set();
 		let commonKey = null;
 		let decodedCount = 0;
-		if (mnemonics.filter((mnemonic) => mnemonic.trim()).length > 256) throw new Slip39Error(`Too many mnemonic share lines. Maximum is 256.`);
+		if (mnemonics.filter((mnemonic) => mnemonic.trim()).length > 256) throw new MalformedMnemonicError(`Too many mnemonic share lines. Maximum is 256.`);
 		for (const mnemonic of mnemonics) {
 			if (!mnemonic.trim()) continue;
 			const share = Share.fromMnemonic(mnemonic);
 			const canonicalMnemonic = share.toMnemonic();
-			if (seenMnemonics.has(canonicalMnemonic)) continue;
+			if (seenMnemonics.has(canonicalMnemonic)) throw new DuplicateShareError("Duplicate mnemonic share.");
 			seenMnemonics.add(canonicalMnemonic);
 			decodedCount += 1;
-			if (commonKey && commonKey !== share.commonKey()) throw new Slip39Error(`Invalid set of mnemonics. All mnemonics must begin with the same 2 words and use the same group policy.`);
+			if (commonKey && commonKey !== share.commonKey()) throw new IncompatibleSharesError(`Invalid set of mnemonics. All mnemonics must begin with the same 2 words and use the same group policy.`);
 			commonKey = share.commonKey();
 			if (!groups.has(share.groupIndex)) groups.set(share.groupIndex, {
 				groupKey: share.groupKey(),
 				sharesByMemberIndex: /* @__PURE__ */ new Map()
 			});
 			const group = groups.get(share.groupIndex);
-			if (!group) throw new Slip39Error("Invalid mnemonic group state.");
-			if (group.groupKey !== share.groupKey()) throw new Slip39Error("Invalid set of mnemonics. Group parameters do not match.");
+			if (!group) throw new IncompatibleSharesError("Invalid mnemonic group state.");
+			if (group.groupKey !== share.groupKey()) throw new IncompatibleSharesError("Invalid set of mnemonics. Group parameters do not match.");
 			const existing = group.sharesByMemberIndex.get(share.index);
 			if (existing) {
-				if (existing.mnemonic !== canonicalMnemonic) throw new Slip39Error(`Conflicting mnemonic shares for group ${share.groupIndex + 1}, member ${share.index + 1}.`);
-				continue;
+				if (existing.mnemonic !== canonicalMnemonic) throw new DuplicateShareError(`Conflicting mnemonic shares for group ${share.groupIndex + 1}, member ${share.index + 1}.`);
+				throw new DuplicateShareError("Duplicate mnemonic share.");
 			}
 			group.sharesByMemberIndex.set(share.index, {
 				mnemonic: canonicalMnemonic,
 				share
 			});
 		}
-		if (decodedCount === 0) throw new Slip39Error("The list of mnemonics is empty.");
+		if (decodedCount === 0) throw new InsufficientSharesError("The list of mnemonics is empty.");
 		return groups;
 	}
 	async function combineMnemonicsFlexible(mnemonics, passphrase = "") {
 		const groups = parseFlexibleMnemonics(mnemonics);
 		const firstGroup = groups.values().next().value;
-		if (!firstGroup) throw new Slip39Error("The list of mnemonics is empty.");
+		if (!firstGroup) throw new InsufficientSharesError("The list of mnemonics is empty.");
 		const firstEntry = firstGroup.sharesByMemberIndex.values().next().value;
-		if (!firstEntry) throw new Slip39Error("The list of mnemonics is empty.");
+		if (!firstEntry) throw new InsufficientSharesError("The list of mnemonics is empty.");
 		const groupThreshold = firstEntry.share.groupThreshold;
 		const completeGroups = [...groups.entries()].map(([, group]) => {
 			const firstMemberEntry = group.sharesByMemberIndex.values().next().value;
-			if (!firstMemberEntry) throw new Slip39Error("Invalid mnemonic group state.");
+			if (!firstMemberEntry) throw new IncompatibleSharesError("Invalid mnemonic group state.");
 			return {
 				memberThreshold: firstMemberEntry.share.memberThreshold,
 				shares: [...group.sharesByMemberIndex.values()]
 			};
 		}).filter((group) => group.shares.length >= group.memberThreshold);
-		if (completeGroups.length < groupThreshold) throw new Slip39Error(`Insufficient number of mnemonic groups. Required groups: ${groupThreshold}.`);
+		if (completeGroups.length < groupThreshold) throw new InsufficientSharesError(`Insufficient number of mnemonic groups. Required groups: ${groupThreshold}.`);
 		const errorCounts = /* @__PURE__ */ new Map();
 		let attemptCount = 0;
 		for (const groupSet of combinations(completeGroups, groupThreshold)) for (const memberCombinationSet of candidateMemberSets(groupSet)) {
-			if (attemptCount >= 512) throw new Slip39Error("Too many candidate combinations.");
+			if (attemptCount >= 512) throw new IncompatibleSharesError("Too many candidate combinations.");
 			attemptCount += 1;
 			const candidateMnemonics = memberCombinationSet.flat();
 			try {
@@ -1578,10 +1590,10 @@ button:disabled {
 				errorCounts.set(message, (errorCounts.get(message) ?? 0) + 1);
 			}
 		}
-		if (errorCounts.size === 0) throw new Slip39Error("No valid threshold-complete mnemonic subset was found.");
-		if (errorCounts.size === 1) throw new Slip39Error([...errorCounts.keys()][0] ?? "No valid threshold-complete mnemonic subset was found.");
+		if (errorCounts.size === 0) throw new IncompatibleSharesError("No valid threshold-complete mnemonic subset was found.");
+		if (errorCounts.size === 1) throw new IncompatibleSharesError([...errorCounts.keys()][0] ?? "No valid threshold-complete mnemonic subset was found.");
 		const summary = [...errorCounts.entries()].sort((a, b) => b[1] - a[1]).map(([message, count]) => `  - ${message} (x${count} times)`).join("\n");
-		throw new Slip39Error(`No valid threshold-complete mnemonic subset was found.\nTried ${attemptCount} combinations. Most common errors:\n${summary}`);
+		throw new IncompatibleSharesError(`No valid threshold-complete mnemonic subset was found.\nTried ${attemptCount} combinations. Most common errors:\n${summary}`);
 	}
 	//#endregion
 	//#region src/ts/slip39/text-envelope.ts

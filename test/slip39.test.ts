@@ -7,9 +7,21 @@ import { fileURLToPath } from "node:url";
 import fc from "fast-check";
 import * as slip39 from "../src/ts/slip39/index.ts";
 import {
+  DuplicateShareError,
+  IncompatibleSharesError,
+  InsufficientSharesError,
+  InvalidChecksumError,
+  MalformedMnemonicError,
+  RecoveryDigestMismatchError
+} from "../src/ts/slip39/errors.ts";
+import {
   combineMnemonics as combineMnemonicsSource,
   generateMnemonics as generateMnemonicsSource
 } from "../src/ts/slip39/mnemonics.ts";
+import {
+  recoverSecret as recoverSecretSource,
+  splitSecret as splitSecretSource
+} from "../src/ts/slip39/secret-sharing.ts";
 
 type TestCrypto = {
   subtle: unknown;
@@ -403,6 +415,23 @@ function deterministicCrypto(): TestCrypto {
   };
 }
 
+function finalRecoveryForbiddenCrypto(): TestCrypto {
+  return {
+    subtle: new Proxy(
+      {},
+      {
+        get(_target, property): never {
+          throw new Error(`Final recovery crypto must not run: ${String(property)}`);
+        }
+      }
+    ),
+    getRandomValues(target: Uint8Array): Uint8Array {
+      target.fill(0);
+      return target;
+    }
+  };
+}
+
 const appPromise = loadAppCore();
 
 function asArray(bytes: Uint8Array): number[] {
@@ -661,12 +690,31 @@ test("strict recovery still rejects surplus single-group shares", async () => {
   await assert.rejects(() => combineMnemonics(shares, ""), /Wrong number of mnemonics/);
 });
 
-test("flexible recovery accepts surplus and duplicate shares", async () => {
+test("flexible recovery accepts surplus unique shares", async () => {
   const { bytesToHex, combineMnemonicsFlexible, generateMnemonics } = await appPromise;
   const shares = await generateMnemonics(2, 3, SECRET_16, "");
-  assert.equal(
-    bytesToHex(await combineMnemonicsFlexible([shares[0], shares[1], shares[1], shares[2]], "")),
-    SECRET_16_HEX
+  assert.equal(bytesToHex(await combineMnemonicsFlexible(shares, "")), SECRET_16_HEX);
+});
+
+test("flexible recovery rejects duplicate shares before threshold search", async () => {
+  const { combineMnemonicsFlexible, generateMnemonics } = await appPromise;
+  const shares = await generateMnemonics(2, 3, SECRET_16, "");
+  await assert.rejects(
+    () => combineMnemonicsFlexible([shares[0], shares[1], shares[1], shares[2]], ""),
+    DuplicateShareError
+  );
+
+  const threeOfFive = await generateMnemonics(3, 5, SECRET_16, "", {
+    identifier: 23,
+    iterationExponent: 0
+  });
+  await assert.rejects(
+    () => combineMnemonicsFlexible([threeOfFive[0], threeOfFive[1], threeOfFive[1]], ""),
+    DuplicateShareError
+  );
+  await assert.rejects(
+    () => combineMnemonicsFlexible([threeOfFive[0], threeOfFive[0], threeOfFive[1]], ""),
+    DuplicateShareError
   );
 });
 
@@ -1008,9 +1056,13 @@ test("text sharing negative recovery cases do not recover the target text", asyn
     () => app.combineMnemonics([shares[0], shares[0], shares[1]], "negative passphrase"),
     /unique/
   );
+  await assert.rejects(
+    () => app.combineMnemonicsFlexible([shares[0], shares[1], shares[1]], "negative passphrase"),
+    DuplicateShareError
+  );
 
   const flexibleRecovered = await app.combineMnemonicsFlexible(
-    [shares[0], shares[1], shares[1], shares[2], shares[3], shares[4]],
+    [shares[0], shares[1], shares[2], shares[3], shares[4]],
     "negative passphrase"
   );
   assert.equal(await app.decodeTextMasterSecret(flexibleRecovered), text);
@@ -1502,7 +1554,7 @@ test("flexible recovery reports defensive internal map invariant failures", asyn
     } as typeof Set.prototype.has;
     await assert.rejects(
       () => combineMnemonicsFlexible(["synthetic", "synthetic"], ""),
-      /No valid threshold-complete mnemonic subset was found/
+      /Duplicate mnemonic share/
     );
   } finally {
     Map.prototype.get = originalGet;
@@ -1556,8 +1608,8 @@ test(
   }
 );
 
-test("property: combining fewer than threshold shares never deterministically recovers the secret", async () => {
-  const { Slip39Error, bytesToHex, combineMnemonics, generateMnemonics } = await appPromise;
+test("property: combining fewer than threshold shares stops as insufficient", async () => {
+  const { combineMnemonics, generateMnemonics } = await appPromise;
   await fc.assert(
     fc.asyncProperty(
       THRESHOLD_PARAMETERS_ARBITRARY,
@@ -1571,12 +1623,10 @@ test("property: combining fewer than threshold shares never deterministically re
           .slice(0, threshold - 1)
           .map((index) => mnemonics[index]);
 
-        try {
-          const recovered = await combineMnemonics(insufficient, "");
-          assert.notEqual(bytesToHex(recovered), SECRET_16_HEX);
-        } catch (error) {
-          assert.ok(error instanceof Slip39Error);
-        }
+        await assert.rejects(
+          () => combineMnemonics(insufficient, ""),
+          (error: unknown) => error instanceof InsufficientSharesError
+        );
       }
     ),
     { numRuns: 100 }
@@ -1598,6 +1648,246 @@ test("property: GF(256) multiplication obeys associative, commutative, and ident
     ),
     { numRuns: 1000 }
   );
+});
+
+test("GF(256) multiplication is exhaustive over the byte field", { timeout: 120000 }, async () => {
+  const { gfMultiply } = await appPromise;
+  const inverseByByte = new Array<number>(256).fill(0);
+
+  for (let value = 1; value <= 255; value += 1) {
+    const inverse = Array.from({ length: 255 }, (_, index) => index + 1).find(
+      (candidate) => gfMultiply(value, candidate) === 1
+    );
+    assert.equal(typeof inverse, "number", `inverse ${value}`);
+    inverseByByte[value] = inverse ?? 0;
+  }
+
+  for (let a = 0; a <= 255; a += 1) {
+    assert.equal(a ^ 0, a);
+    assert.equal(gfMultiply(a, 0), 0);
+    assert.equal(gfMultiply(a, 1), a);
+    if (a !== 0) {
+      assert.equal(gfMultiply(a, inverseByByte[a]), 1, `inverse ${a}`);
+    }
+
+    for (let b = 0; b <= 255; b += 1) {
+      assert.equal(a ^ b, b ^ a);
+      assert.equal(gfMultiply(a, b), gfMultiply(b, a), `commutative ${a},${b}`);
+
+      for (let c = 0; c <= 255; c += 1) {
+        if (gfMultiply(gfMultiply(a, b), c) !== gfMultiply(a, gfMultiply(b, c))) {
+          assert.fail(`associative ${a},${b},${c}`);
+        }
+        if (gfMultiply(a, b ^ c) !== (gfMultiply(a, b) ^ gfMultiply(a, c))) {
+          assert.fail(`distributive ${a},${b},${c}`);
+        }
+      }
+    }
+  }
+});
+
+test("3-of-5 threshold invariant is exact and order-independent", async () => {
+  const app = await loadAppCore(deterministicCrypto());
+  const noFinalRecoveryApp = await loadAppCore(finalRecoveryForbiddenCrypto());
+  const shares = await app.generateMnemonics(3, 5, SECRET_16, "threshold pass", {
+    identifier: 333,
+    iterationExponent: 0
+  });
+
+  for (const subset of combinations(shares, 3)) {
+    assert.equal(
+      app.bytesToHex(await app.combineMnemonics(subset, "threshold pass")),
+      SECRET_16_HEX
+    );
+    assert.equal(
+      app.bytesToHex(await app.combineMnemonics([...subset].reverse(), "threshold pass")),
+      SECRET_16_HEX
+    );
+  }
+
+  for (const size of [4, 5]) {
+    for (const subset of combinations(shares, size)) {
+      assert.equal(
+        app.bytesToHex(await app.combineMnemonicsFlexible(subset, "threshold pass")),
+        SECRET_16_HEX
+      );
+    }
+  }
+
+  for (const size of [1, 2]) {
+    for (const subset of combinations(shares, size)) {
+      await assert.rejects(
+        () => noFinalRecoveryApp.combineMnemonics(subset, "threshold pass"),
+        (error: unknown) => error instanceof InsufficientSharesError
+      );
+    }
+  }
+});
+
+test("representative threshold boundaries recover exactly and reject short sets", async () => {
+  const app = await loadAppCore(deterministicCrypto());
+  const noFinalRecoveryApp = await loadAppCore(finalRecoveryForbiddenCrypto());
+  const configs: Array<[number, number]> = [
+    [1, 1],
+    [2, 2],
+    [2, 3],
+    [4, 7],
+    [8, 16],
+    [16, 16]
+  ];
+
+  for (const [threshold, shareCount] of configs) {
+    const shares = await app.generateMnemonics(threshold, shareCount, SECRET_16, "", {
+      identifier: 400 + threshold * 16 + shareCount,
+      iterationExponent: 0
+    });
+    const thresholdSubset = shares.slice(0, threshold);
+    assert.equal(
+      app.bytesToHex(await app.combineMnemonics(thresholdSubset, "")),
+      SECRET_16_HEX,
+      `${threshold}-of-${shareCount}`
+    );
+
+    if (shareCount > threshold) {
+      assert.equal(
+        app.bytesToHex(await app.combineMnemonicsFlexible(shares, "")),
+        SECRET_16_HEX,
+        `surplus ${threshold}-of-${shareCount}`
+      );
+    }
+
+    if (threshold > 1) {
+      await assert.rejects(
+        () => noFinalRecoveryApp.combineMnemonics(shares.slice(0, threshold - 1), ""),
+        (error: unknown) => error instanceof InsufficientSharesError
+      );
+    } else {
+      await assert.rejects(
+        () => app.combineMnemonics([shares[0], shares[0]], ""),
+        (error: unknown) => error instanceof DuplicateShareError
+      );
+    }
+  }
+});
+
+test("recoverSecret rejects insufficient raw shares before digest verification", async () => {
+  const shares = await splitSecretSource(3, 5, SECRET_16);
+  await withGlobalCrypto(finalRecoveryForbiddenCrypto(), () =>
+    assert.rejects(
+      () => recoverSecretSource(3, shares.slice(0, 2)),
+      (error: unknown) => {
+        assert.ok(error instanceof InsufficientSharesError);
+        assert.doesNotMatch(thrownMessage(error), /digest|decrypt|passphrase|candidate/i);
+        return true;
+      }
+    )
+  );
+});
+
+test("metadata compatibility and digest failures use distinct crypto errors", async () => {
+  const app = await loadAppCore(deterministicCrypto());
+  const firstShares = await app.generateMnemonics(2, 3, SECRET_16, "", {
+    identifier: 501,
+    iterationExponent: 0
+  });
+  const otherSecret = Uint8Array.from({ length: 16 }, (_, index) => 255 - index);
+  const secondShares = await app.generateMnemonics(2, 3, otherSecret, "", {
+    identifier: 502,
+    iterationExponent: 0
+  });
+  const parsed = app.Share.fromMnemonic(firstShares[1]);
+  const incompatibleThresholdShare = new app.Share(
+    parsed.identifier,
+    parsed.extendable,
+    parsed.iterationExponent,
+    parsed.groupIndex,
+    parsed.groupThreshold,
+    parsed.groupCount,
+    parsed.index,
+    parsed.memberThreshold + 1,
+    parsed.value
+  ).toMnemonic();
+
+  await assert.rejects(
+    () => app.combineMnemonics([firstShares[0], secondShares[0]], ""),
+    (error: unknown) => error instanceof IncompatibleSharesError
+  );
+  await assert.rejects(
+    () => app.combineMnemonics([firstShares[0], incompatibleThresholdShare], ""),
+    (error: unknown) => error instanceof IncompatibleSharesError
+  );
+
+  const sameMetadataDifferentSecret = await app.generateMnemonics(2, 3, otherSecret, "", {
+    identifier: 501,
+    iterationExponent: 0
+  });
+  await assert.rejects(
+    () => app.combineMnemonics([firstShares[0], sameMetadataDifferentSecret[1]], ""),
+    (error: unknown) => {
+      assert.ok(error instanceof RecoveryDigestMismatchError);
+      const message = thrownMessage(error);
+      assert.doesNotMatch(message, new RegExp(SECRET_16_HEX));
+      assert.doesNotMatch(message, /digest bytes|candidate|passphrase/i);
+      return true;
+    }
+  );
+});
+
+test("RS1024 checksum rejects word mutations and malformed words", async () => {
+  const { Share, SLIP39_WORDS, generateMnemonics } = await appPromise;
+  const [share] = await generateMnemonics(1, 1, SECRET_16, "", {
+    identifier: 600,
+    iterationExponent: 0
+  });
+  const words = share.split(" ");
+
+  for (const mutationCount of [1, 2, 3]) {
+    const mutatedWords = [...words];
+    for (let index = 0; index < mutationCount; index += 1) {
+      const currentIndex = SLIP39_WORDS.indexOf(mutatedWords[index]);
+      mutatedWords[index] = SLIP39_WORDS[(currentIndex + 1) % SLIP39_WORDS.length];
+    }
+    assert.throws(() => Share.fromMnemonic(mutatedWords.join(" ")), InvalidChecksumError);
+  }
+
+  assert.throws(() => Share.fromMnemonic("notaword"), MalformedMnemonicError);
+  assert.throws(
+    () => Share.fromMnemonic(words.slice(0, -1).join(" ")),
+    (error: unknown) =>
+      error instanceof MalformedMnemonicError || error instanceof InvalidChecksumError
+  );
+});
+
+test("master secret bytes and passphrase spaces are preserved exactly", async () => {
+  const { bytesToHex, combineMnemonics, generateMnemonics, parseMasterSecretHex } =
+    await appPromise;
+  const secretHex = "00000000000000000000000000000001";
+  const secret = parseMasterSecretHex(secretHex);
+  const passphrase = "  leading and trailing spaces  ";
+  const shares = await generateMnemonics(2, 3, secret, passphrase, {
+    identifier: 601,
+    iterationExponent: 0
+  });
+
+  assert.equal(bytesToHex(await combineMnemonics([shares[2], shares[0]], passphrase)), secretHex);
+  assert.notEqual(
+    bytesToHex(await combineMnemonics([shares[0], shares[1]], passphrase.trim())),
+    secretHex
+  );
+  await assert.rejects(
+    () => generateMnemonics(2, 3, secret, "line\nbreak"),
+    (error: unknown) => error instanceof MalformedMnemonicError
+  );
+});
+
+test("consecutive production generations use fresh cryptographic randomness", async () => {
+  const { bytesToHex, combineMnemonics, generateMnemonics } = await appPromise;
+  const first = await generateMnemonics(2, 3, SECRET_16, "", { iterationExponent: 0 });
+  const second = await generateMnemonics(2, 3, SECRET_16, "", { iterationExponent: 0 });
+
+  assert.notDeepEqual(first, second);
+  assert.equal(bytesToHex(await combineMnemonics([first[0], first[1]], "")), SECRET_16_HEX);
+  assert.equal(bytesToHex(await combineMnemonics([second[0], second[1]], "")), SECRET_16_HEX);
 });
 
 test("recovery supports original and extendable checksum variants", async () => {

@@ -1,4 +1,4 @@
-import { Slip39Error } from "./errors.ts";
+import { DuplicateShareError, IncompatibleSharesError } from "./errors.ts";
 import { modulo } from "./utils.ts";
 
 export type RawShare = { x: number; data: Uint8Array };
@@ -32,13 +32,13 @@ export function interpolate(shares: RawShare[], x: number): Uint8Array {
   const lengths = new Set<number>();
   for (const share of shares) {
     if (seen.has(share.x)) {
-      throw new Slip39Error("Share indices must be unique.");
+      throw new DuplicateShareError("Share indices must be unique.");
     }
     seen.add(share.x);
     lengths.add(share.data.length);
   }
   if (lengths.size !== 1) {
-    throw new Slip39Error("All share values must have the same length.");
+    throw new IncompatibleSharesError("All share values must have the same length.");
   }
 
   for (const share of shares) {

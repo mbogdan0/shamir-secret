@@ -1,5 +1,19 @@
 # Release Notes
 
+## v0.3.5 (2026-05-02)
+
+### Artifact Integrity
+
+- Artifact: `dist/index.html`
+- SHA-256: `957f2af1ef8c8844c7ff7b19520d25a6f3798db1fcdfa1e6584ebdafa9d3ef8f`
+- Verification command: `shasum -a 256 dist/index.html`
+
+### Notes
+
+- Updated the README coverage badge to the current 99.62% line coverage.
+- Added crypto-boundary hardening for duplicate shares, insufficient shares, and recovery error taxonomy.
+- Rebuilt the offline artifact from the hardened SLIP-0039 core.
+
 ## v0.3.4 (2026-04-29)
 
 ### Artifact Integrity

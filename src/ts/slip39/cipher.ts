@@ -5,7 +5,7 @@ import {
   ROUND_COUNT
 } from "./constants.ts";
 import { pbkdf2Sha256, randomBytes } from "./crypto.ts";
-import { Slip39Error } from "./errors.ts";
+import { InvalidSecretLengthError } from "./errors.ts";
 import {
   asciiToBytes,
   bigIntToBytes,
@@ -47,7 +47,7 @@ export async function encrypt(
   extendable: boolean
 ): Promise<Uint8Array> {
   if (masterSecret.length % 2 !== 0) {
-    throw new Slip39Error("The master secret byte length must be even.");
+    throw new InvalidSecretLengthError("The master secret byte length must be even.");
   }
 
   let left: Uint8Array = masterSecret.slice(0, masterSecret.length / 2);
@@ -78,7 +78,7 @@ export async function decrypt(
   extendable: boolean
 ): Promise<Uint8Array> {
   if (encryptedMasterSecret.length % 2 !== 0) {
-    throw new Slip39Error("The encrypted master secret byte length must be even.");
+    throw new InvalidSecretLengthError("The encrypted master secret byte length must be even.");
   }
 
   let left: Uint8Array = encryptedMasterSecret.slice(0, encryptedMasterSecret.length / 2);

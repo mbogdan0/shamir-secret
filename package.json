@@ -1,6 +1,6 @@
 {
   "name": "shamir-secret",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,7 @@
     "build": "node --experimental-strip-types scripts/build.ts",
     "preview": "vite preview dist",
     "test": "node --experimental-strip-types --test \"test/*.test.ts\"",
-    "test:coverage": "node --experimental-strip-types --experimental-test-coverage --test-coverage-lines=98 --test-coverage-branches=94 --test-coverage-functions=100 --test-coverage-include=\"src/ts/**/*.ts\" --test-coverage-include=\"scripts/*.ts\" --test-coverage-exclude=\"test/**\" --test \"test/*.test.ts\"",
+    "test:coverage": "node --experimental-strip-types --experimental-test-coverage --test-coverage-lines=98 --test-coverage-branches=94 --test-coverage-functions=100 --test-coverage-include=\"src/ts/**/*.ts\" --test-coverage-include=\"scripts/*.ts\" --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"scripts/reference-interop.ts\" --test-coverage-exclude=\"scripts/verify-official-vectors*.ts\" --test \"test/*.test.ts\"",
     "lint": "npm run lint:ts && npm run lint:css && npm run format:check",
     "lint:ts": "eslint . --max-warnings=0",
     "lint:css": "stylelint \"src/**/*.css\" --max-warnings=0",
@@ -18,11 +18,14 @@
     "audit:signatures": "npm audit signatures",
     "sbom": "npm sbom --package-lock-only --sbom-format=cyclonedx",
     "verify:build": "node --experimental-strip-types scripts/build.ts --check",
+    "verify:official-vectors": "node --experimental-strip-types scripts/verify-official-vectors.ts",
+    "verify:official-vectors:upstream": "node --experimental-strip-types scripts/verify-official-vectors-upstream.ts",
     "verify:runtime-deps": "node --experimental-strip-types scripts/verify-runtime-deps.ts",
     "verify:source-policy": "node --experimental-strip-types scripts/verify-source-policy.ts",
+    "test:reference-interop": "node --experimental-strip-types scripts/reference-interop.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run lint && npm run typecheck && npm run verify:build && npm run test:coverage && npm run verify:runtime-deps && npm run verify:source-policy && npm run build",
+    "check": "npm run lint && npm run typecheck && npm run verify:build && npm run verify:official-vectors && npm run test:coverage && npm run verify:runtime-deps && npm run verify:source-policy && npm run build",
     "prepare": "husky"
   },
   "engines": {

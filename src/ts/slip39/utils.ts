@@ -1,5 +1,5 @@
 import { RADIX_BITS } from "./constants.ts";
-import { Slip39Error } from "./errors.ts";
+import { MalformedMnemonicError } from "./errors.ts";
 import { SLIP39_WORDS, WORD_INDEX } from "./wordlist.ts";
 
 export function bitsToWords(bitLength: number): number {
@@ -77,7 +77,7 @@ export function bigIntToBytes(value: bigint | number, length: number): Uint8Arra
     current >>= 8n;
   }
   if (current !== 0n) {
-    throw new Slip39Error("Invalid mnemonic padding.");
+    throw new MalformedMnemonicError("Invalid mnemonic padding.");
   }
   return output;
 }
@@ -95,7 +95,7 @@ export function intToIndices(
     current >>= BigInt(radixBits);
   }
   if (current !== 0n) {
-    throw new Slip39Error("Integer does not fit in the requested word count.");
+    throw new MalformedMnemonicError("Integer does not fit in the requested word count.");
   }
   return output;
 }
@@ -104,7 +104,7 @@ export function intFromIndices(indices: number[], radixBits: number = RADIX_BITS
   let value = 0n;
   for (const index of indices) {
     if (!Number.isInteger(index) || index < 0 || index >= 1 << radixBits) {
-      throw new Slip39Error("Invalid word index.");
+      throw new MalformedMnemonicError("Invalid word index.");
     }
     value = (value << BigInt(radixBits)) | BigInt(index);
   }
@@ -122,12 +122,12 @@ export function indicesToWords(indices: number[]): string[] {
 export function mnemonicToIndices(mnemonic: string): number[] {
   const words = mnemonic.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length === 0) {
-    throw new Slip39Error("The mnemonic is empty.");
+    throw new MalformedMnemonicError("The mnemonic is empty.");
   }
   return words.map((word) => {
     const index = WORD_INDEX.get(word);
     if (index === undefined) {
-      throw new Slip39Error(`Unknown SLIP-0039 word: "${word}".`);
+      throw new MalformedMnemonicError(`Unknown SLIP-0039 word: "${word}".`);
     }
     return index;
   });

@@ -1,6 +1,11 @@
 import { DIGEST_INDEX, DIGEST_LENGTH_BYTES, SECRET_INDEX } from "./constants.ts";
 import { hmacSha256, randomBytes } from "./crypto.ts";
-import { Slip39Error } from "./errors.ts";
+import {
+  InsufficientSharesError,
+  InvalidSecretLengthError,
+  InvalidThresholdError,
+  RecoveryDigestMismatchError
+} from "./errors.ts";
 import { interpolate, type RawShare } from "./gf256.ts";
 import { bytesEqual, concatBytes, zeroize } from "./utils.ts";
 import { validateShareParameters } from "./validation.ts";
@@ -19,10 +24,10 @@ export async function splitSecret(
 ): Promise<RawShare[]> {
   validateShareParameters(threshold, shareCount);
   if (Object.prototype.toString.call(sharedSecret) !== "[object Uint8Array]") {
-    throw new Slip39Error("Shared secret must be a Uint8Array.");
+    throw new InvalidSecretLengthError("Shared secret must be a Uint8Array.");
   }
   if (threshold > 1 && sharedSecret.length < DIGEST_LENGTH_BYTES + 1) {
-    throw new Slip39Error(
+    throw new InvalidSecretLengthError(
       `Shared secret must be at least ${DIGEST_LENGTH_BYTES + 1} bytes when threshold > 1.`
     );
   }
@@ -56,6 +61,14 @@ export async function splitSecret(
 }
 
 export async function recoverSecret(threshold: number, shares: RawShare[]): Promise<Uint8Array> {
+  if (!Number.isInteger(threshold) || threshold < 1) {
+    throw new InvalidThresholdError("Threshold must be a positive integer.");
+  }
+  if (shares.length < threshold) {
+    throw new InsufficientSharesError(
+      `Insufficient shares. Required shares: ${threshold}, got ${shares.length}.`
+    );
+  }
   if (threshold === 1) {
     return new Uint8Array(shares[0].data);
   }
@@ -67,7 +80,7 @@ export async function recoverSecret(threshold: number, shares: RawShare[]): Prom
 
   if (!bytesEqual(digest, await createDigest(randomPart, sharedSecret))) {
     zeroize(digestShare, digest, randomPart, sharedSecret);
-    throw new Slip39Error("Invalid digest of the shared secret.");
+    throw new RecoveryDigestMismatchError("Invalid digest of the shared secret.");
   }
 
   zeroize(digestShare, digest, randomPart);
